@@ -1,8 +1,11 @@
-import React from 'react';
+import React, { useCallback } from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { OnboardingStackParamList } from '../types/navigation';
 import { WelcomeStep } from '../screens/onboarding/WelcomeStep';
 import { NameInputStep } from '../screens/onboarding/NameInputStep';
+import { PersonalityTestStep } from '../screens/onboarding/PersonalityTestStep';
+import { TransitionStep } from '../screens/onboarding/TransitionStep';
+import { ResultTagSelectionStep } from '../screens/onboarding/ResultTagSelectionStep';
 import { PlaceholderStep } from '../screens/onboarding/PlaceholderSteps';
 import { useAppStore } from '../store';
 
@@ -10,6 +13,10 @@ const Stack = createNativeStackNavigator<OnboardingStackParamList>();
 
 export function OnboardingNavigator() {
   const completeOnboarding = useAppStore((s) => s.completeOnboarding);
+  const setPersonalityTypeId = useAppStore((s) => s.setPersonalityTypeId);
+  const setIdealPersonalityTypeId = useAppStore(
+    (s) => s.setIdealPersonalityTypeId,
+  );
 
   return (
     <Stack.Navigator
@@ -19,42 +26,45 @@ export function OnboardingNavigator() {
       }}>
       <Stack.Screen name="Welcome" component={WelcomeStep} />
       <Stack.Screen name="NameInput" component={NameInputStep} />
+
+      {/* Step 3: 현재의 나 성격 테스트 */}
       <Stack.Screen name="CurrentPersonalityTest">
         {({ navigation }) => (
-          <PlaceholderStep
-            title="현재의 나 성격 테스트"
-            step={3}
-            onNext={() => navigation.navigate('Transition')}
+          <PersonalityTestStep
+            testType="current"
+            stepNumber={3}
+            onComplete={(id) => {
+              if (id) setPersonalityTypeId(id);
+              navigation.navigate('Transition');
+            }}
           />
         )}
       </Stack.Screen>
-      <Stack.Screen name="Transition">
-        {({ navigation }) => (
-          <PlaceholderStep
-            title="테스트 전환"
-            step={4}
-            onNext={() => navigation.navigate('IdealPersonalityTest')}
-          />
-        )}
-      </Stack.Screen>
+
+      {/* Step 4: 전환 (현재 결과 표시) */}
+      <Stack.Screen name="Transition" component={TransitionStep} />
+
+      {/* Step 5: 이상적인 나 성격 테스트 */}
       <Stack.Screen name="IdealPersonalityTest">
         {({ navigation }) => (
-          <PlaceholderStep
-            title="이상적인 나 성격 테스트"
-            step={5}
-            onNext={() => navigation.navigate('ResultTagSelection')}
+          <PersonalityTestStep
+            testType="ideal"
+            stepNumber={5}
+            onComplete={(id) => {
+              if (id) setIdealPersonalityTypeId(id);
+              navigation.navigate('ResultTagSelection');
+            }}
           />
         )}
       </Stack.Screen>
-      <Stack.Screen name="ResultTagSelection">
-        {({ navigation }) => (
-          <PlaceholderStep
-            title="결과 & 태그 선택"
-            step={6}
-            onNext={() => navigation.navigate('Occupation')}
-          />
-        )}
-      </Stack.Screen>
+
+      {/* Step 6: 결과 & 태그 선택 */}
+      <Stack.Screen
+        name="ResultTagSelection"
+        component={ResultTagSelectionStep}
+      />
+
+      {/* Steps 7-10: Placeholder (Branch 3에서 구현 예정) */}
       <Stack.Screen name="Occupation">
         {({ navigation }) => (
           <PlaceholderStep
