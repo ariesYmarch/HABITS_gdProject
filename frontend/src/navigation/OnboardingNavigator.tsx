@@ -2,6 +2,7 @@ import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { OnboardingStackParamList } from '../types/navigation';
 import { WelcomeStep } from '../screens/onboarding/WelcomeStep';
+import { NameInputStep } from '../screens/onboarding/NameInputStep';
 import { PlaceholderStep } from '../screens/onboarding/PlaceholderSteps';
 import { useAppStore } from '../store';
 
@@ -17,15 +18,7 @@ export function OnboardingNavigator() {
         animation: 'slide_from_right',
       }}>
       <Stack.Screen name="Welcome" component={WelcomeStep} />
-      <Stack.Screen name="NameInput">
-        {({ navigation }) => (
-          <PlaceholderStep
-            title="이름 입력"
-            step={2}
-            onNext={() => navigation.navigate('CurrentPersonalityTest')}
-          />
-        )}
-      </Stack.Screen>
+      <Stack.Screen name="NameInput" component={NameInputStep} />
       <Stack.Screen name="CurrentPersonalityTest">
         {({ navigation }) => (
           <PlaceholderStep
