@@ -2,16 +2,43 @@
 __pycache__/
 venv/
 .pytest_cache/
+*.pyc
 
 # Node.js (React Native)
-node_modules/    <-- 충돌 원인 1순위; 절대 업로드 금지
+node_modules/
 npm-debug.log
 yarn-error.log
+.npm/
 
 # Mac/Windows 시스템 파일
 .DS_Store
 Thumbs.db
 
-# 앱 빌드 파일
-android/app/build/
-ios/Pods/
+# React Native 빌드 파일
+frontend/android/app/build/
+frontend/ios/Pods/
+frontend/ios/build/
+frontend/android/build/
+frontend/android/.gradle/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# 환경 변수
+.env
+.env.local
+.env.production
+
+# Metro bundler
+*.jsbundle
+*.bundle
+
+# CocoaPods
+frontend/ios/Pods/
+
+# Temporary files
+*.log
+*.tmp

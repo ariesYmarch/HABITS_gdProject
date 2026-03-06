@@ -1,10 +1,9 @@
 import axios from 'axios';
 import { Platform } from 'react-native';
 
-// 분기 처리
 const API_URL = Platform.select({
-  ios: 'http://localhost:8000', // iOS 에뮬레이터 전용 주소
-  android: 'http://10.0.2.2:8000', // 안드로이드 에뮬레이터 전용 주소
+  ios: 'http://localhost:8000',
+  android: 'http://10.0.2.2:8000',
 });
 
 const api = axios.create({
@@ -12,6 +11,7 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  timeout: 10000,
 });
 
 export default api;
