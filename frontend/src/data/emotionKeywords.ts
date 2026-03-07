@@ -34,6 +34,14 @@ export const EMOTION_KEYWORDS: Record<EmotionType, string[]> = {
     '희망', '기대', '설레', '꿈', '목표', '할수있', '노력', '도전',
     '성장', '발전', '응원', '화이팅', '파이팅', '해낼', '믿어', '가능',
   ],
+  calm: [
+    '평온', '평화', '고요', '차분', '안정', '편안', '잔잔', '여유',
+    '느긋', '조용', '포근', '따뜻', '릴렉스', '명상',
+  ],
+  proud: [
+    '뿌듯', '자랑', '성취', '해냈', '보람', '능력', '잘했', '대견',
+    '칭찬', '인정', '성공', '달성', '완성', '실력',
+  ],
 };
 
 /** 부호/특수문자 기반 감정 보정 규칙 */
@@ -46,29 +54,35 @@ export const PUNCTUATION_RULES = {
 /** 감정별 색상 맵 */
 export const EMOTION_COLORS: Record<EmotionType, string> = {
   joy: '#FFD700',
+  calm: '#81D4FA',
+  proud: '#FF8A65',
+  hope: '#2ECC71',
   sadness: '#6B8EC4',
   anger: '#E74C3C',
   anxiety: '#9B59B6',
   fatigue: '#95A5A6',
-  hope: '#2ECC71',
 };
 
 /** 감정별 이모지 맵 */
 export const EMOTION_EMOJIS: Record<EmotionType, string> = {
   joy: '😊',
+  calm: '😌',
+  proud: '🤩',
+  hope: '🌟',
   sadness: '😢',
   anger: '😤',
   anxiety: '😰',
   fatigue: '😩',
-  hope: '🌟',
 };
 
 /** 감정별 한국어 라벨 */
 export const EMOTION_LABELS: Record<EmotionType, string> = {
   joy: '기쁨',
+  calm: '평온',
+  proud: '뿌듯',
+  hope: '희망',
   sadness: '슬픔',
-  anger: '분노',
+  anger: '짜증',
   anxiety: '불안',
   fatigue: '피로',
-  hope: '희망',
 };
