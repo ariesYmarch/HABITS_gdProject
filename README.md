@@ -1,10 +1,10 @@
 # HABITS 🧘‍♀️
 > **Psychology-based Personalized Habit Coaching Service with AI**
 > 심리 이론 기반의 자아 탐색과 AI 감정 분석을 통한 개인 맞춤형 습관 코칭 서비스
->
 
-**"점이 이어져 선이 되고, 선이 이어져 면이 되듯**
-**꾸준한 실천은 습관이 되고, 습관은 사람을 바꾼다."**
+
+**"점이 이어져 선이 되고, 선이 이어져 면이 되듯—꾸준한 실천은 습관이 되고, 습관은 사람을 바꾼다."** 
+
 
 [![Stack](https://img.shields.io/badge/Tech-React%20Native-blue)]() [![Stack](https://img.shields.io/badge/Backend-FastAPI-green)]() [![Stack](https://img.shields.io/badge/AI-KoELECTRA%20%26%20LLM-orange)]() [![Status](https://img.shields.io/badge/Status-Architecture%20Designed-blueviolet)]()
 
