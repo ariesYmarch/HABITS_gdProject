@@ -13,7 +13,7 @@ interface TestQuestionCardProps {
   question: TestQuestion;
   questionIndex: number;
   totalQuestions: number;
-  selectedChoice: boolean | undefined; // true = A, false = B, undefined = not answered
+  selectedChoice: boolean | undefined;
   onSelectChoice: (choseA: boolean) => void;
 }
 
@@ -36,7 +36,7 @@ export function TestQuestionCard({
 
   return (
     <View style={styles.container}>
-      {/* Category + Question Number Badge */}
+      {/* Category + Question Number Badge — Swift style */}
       <View style={styles.header}>
         <View
           style={[styles.badge, { backgroundColor: theme.primaryColor }]}>
@@ -52,7 +52,7 @@ export function TestQuestionCard({
         </Text>
       </View>
 
-      {/* Question Text */}
+      {/* Question Text — centered, bold */}
       <Text style={[styles.questionText, { color: theme.textPrimary }]}>
         {question.question}
       </Text>
@@ -62,122 +62,79 @@ export function TestQuestionCard({
         style={[
           styles.choiceButton,
           selectedChoice === true && {
-            backgroundColor: theme.primaryColor + '15',
+            backgroundColor: theme.primaryColor + '12',
             borderColor: theme.primaryColor,
           },
         ]}
         onPress={() => onSelectChoice(true)}
         activeOpacity={0.7}>
-        <View style={styles.choiceContent}>
-          <Text
-            style={[
-              styles.choiceLetter,
-              { color: selectedChoice === true ? theme.primaryColor : '#9CA3AF' },
-            ]}>
-            A
-          </Text>
-          <Text
-            style={[
-              styles.choiceText,
-              {
-                color:
-                  selectedChoice === true
-                    ? theme.primaryColor
-                    : theme.textPrimary,
-                fontWeight: selectedChoice === true ? '600' : '400',
-              },
-            ]}>
-            {question.choiceA.text}
-          </Text>
-          {selectedChoice === true && (
-            <Text style={styles.checkMark}>✓</Text>
-          )}
-        </View>
+        <Text
+          style={[
+            styles.choiceText,
+            {
+              color: selectedChoice === true
+                ? theme.textPrimary
+                : theme.textPrimary,
+            },
+          ]}>
+          {question.choiceA.text}
+        </Text>
+        {selectedChoice === true && (
+          <View style={[styles.checkCircle, { backgroundColor: theme.primaryColor }]}>
+            <Text style={styles.checkIcon}>✓</Text>
+          </View>
+        )}
       </TouchableOpacity>
+
+      {/* OR separator */}
+      <Text style={styles.orText}>OR</Text>
 
       {/* Choice B */}
       <TouchableOpacity
         style={[
           styles.choiceButton,
           selectedChoice === false && {
-            backgroundColor: theme.primaryColor + '15',
+            backgroundColor: theme.primaryColor + '12',
             borderColor: theme.primaryColor,
           },
         ]}
         onPress={() => onSelectChoice(false)}
         activeOpacity={0.7}>
-        <View style={styles.choiceContent}>
-          <Text
-            style={[
-              styles.choiceLetter,
-              { color: selectedChoice === false ? theme.primaryColor : '#9CA3AF' },
-            ]}>
-            B
-          </Text>
-          <Text
-            style={[
-              styles.choiceText,
-              {
-                color:
-                  selectedChoice === false
-                    ? theme.primaryColor
-                    : theme.textPrimary,
-                fontWeight: selectedChoice === false ? '600' : '400',
-              },
-            ]}>
-            {question.choiceB.text}
-          </Text>
-          {selectedChoice === false && (
-            <Text style={styles.checkMark}>✓</Text>
-          )}
-        </View>
+        <Text
+          style={[
+            styles.choiceText,
+            {
+              color: selectedChoice === false
+                ? theme.textPrimary
+                : theme.textPrimary,
+            },
+          ]}>
+          {question.choiceB.text}
+        </Text>
+        {selectedChoice === false && (
+          <View style={[styles.checkCircle, { backgroundColor: theme.primaryColor }]}>
+            <Text style={styles.checkIcon}>✓</Text>
+          </View>
+        )}
       </TouchableOpacity>
-
-      {/* Tags preview (subtle) */}
-      {selectedChoice !== undefined && (
-        <View style={styles.tagsRow}>
-          {(selectedChoice
-            ? question.choiceA.tags
-            : question.choiceB.tags
-          ).map((tag) => (
-            <View
-              key={tag}
-              style={[
-                styles.tagChip,
-                { backgroundColor: theme.primaryColor + '10' },
-              ]}>
-              <Text style={[styles.tagText, { color: theme.primaryColor }]}>
-                {tag}
-              </Text>
-            </View>
-          ))}
-        </View>
-      )}
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 24,
-    marginHorizontal: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 3,
+    paddingHorizontal: 24,
+    paddingTop: 16,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 24,
   },
   badge: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 14,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -187,61 +144,57 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   category: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '500',
     marginLeft: 10,
     flex: 1,
   },
   counter: {
-    fontSize: 13,
+    fontSize: 14,
     fontWeight: '500',
   },
   questionText: {
-    fontSize: 17,
-    fontWeight: '600',
-    lineHeight: 26,
-    marginBottom: 20,
+    fontSize: 20,
+    fontWeight: '700',
+    lineHeight: 30,
+    textAlign: 'center',
+    marginBottom: 28,
   },
   choiceButton: {
     borderWidth: 1.5,
     borderColor: '#E5E7EB',
-    borderRadius: 14,
-    padding: 16,
-    marginBottom: 12,
-  },
-  choiceContent: {
+    borderRadius: 16,
+    paddingVertical: 18,
+    paddingHorizontal: 20,
+    backgroundColor: '#FFFFFF',
     flexDirection: 'row',
     alignItems: 'center',
-  },
-  choiceLetter: {
-    fontSize: 15,
-    fontWeight: '700',
-    marginRight: 12,
-    width: 20,
+    justifyContent: 'center',
   },
   choiceText: {
     fontSize: 15,
     lineHeight: 22,
+    textAlign: 'center',
     flex: 1,
   },
-  checkMark: {
-    fontSize: 18,
-    color: '#10B981',
+  checkCircle: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
     marginLeft: 8,
   },
-  tagsRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginTop: 4,
-    gap: 6,
+  checkIcon: {
+    fontSize: 14,
+    color: '#FFFFFF',
+    fontWeight: '700',
   },
-  tagChip: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 10,
-  },
-  tagText: {
-    fontSize: 12,
-    fontWeight: '500',
+  orText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#9CA3AF',
+    textAlign: 'center',
+    marginVertical: 10,
   },
 });

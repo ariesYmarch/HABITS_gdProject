@@ -42,7 +42,7 @@ function DiaryCard({
 }) {
   const emotionChips = entry.emotionTags
     .map((tag) => {
-      const info = EMOTIONS.find((e) => e.type === tag);
+      const info = EMOTIONS.find((e) => e.type === tag || e.label === tag);
       return info ? { emoji: info.emoji, label: info.label, color: info.color } : null;
     })
     .filter(Boolean) as { emoji: string; label: string; color: string }[];
@@ -92,19 +92,6 @@ function DiaryCard({
         </Text>
       )}
 
-      {/* Satisfaction badge */}
-      {entry.habitSatisfaction && (
-        <View style={styles.satBadge}>
-          <Text style={[styles.satBadgeText, { color: primaryColor }]}>
-            습관 만족도:{' '}
-            {entry.habitSatisfaction === 'satisfied'
-              ? '😊 만족'
-              : entry.habitSatisfaction === 'neutral'
-              ? '😐 보통'
-              : '😔 불만족'}
-          </Text>
-        </View>
-      )}
     </View>
   );
 }

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { OnboardingStackParamList } from '../../types/navigation';
 import type { Occupation } from '../../types/user';
@@ -41,6 +42,7 @@ const OCCUPATION_OPTIONS: OccupationOption[] = [
 export function OccupationStep({ navigation }: Props) {
   const themeId = useAppStore((s) => s.selectedTheme);
   const theme = themes[themeId];
+  const insets = useSafeAreaInsets();
   const setOccupation = useAppStore((s) => s.setOccupation);
   const currentOccupation = useAppStore((s) => s.occupation);
 
@@ -52,11 +54,11 @@ export function OccupationStep({ navigation }: Props) {
   };
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.backgroundColor }]}>
+    <View style={[styles.container, { backgroundColor: theme.backgroundColor, paddingTop: insets.top, paddingBottom: insets.bottom + 24 }]}>
       {/* Header */}
       <View style={styles.header}>
         <Text style={[styles.stepLabel, { color: theme.textSecondary }]}>
-          Step 7 / 10
+          Step 7/10
         </Text>
         <Text style={[styles.title, { color: theme.textPrimary }]}>
           직업을 알려주세요
@@ -66,7 +68,7 @@ export function OccupationStep({ navigation }: Props) {
         </Text>
       </View>
 
-      <ProgressBar current={7} total={10} showLabel={false} />
+      <ProgressBar current={7} total={10} />
 
       {/* Occupation Cards */}
       <View style={styles.cardsContainer}>
@@ -201,7 +203,6 @@ const styles = StyleSheet.create({
   },
   footer: {
     paddingHorizontal: 24,
-    paddingBottom: 40,
   },
   button: {
     width: '100%',

@@ -51,12 +51,11 @@ const styles = StyleSheet.create({
   },
   fill: {
     height: '100%',
-    borderRadius: 4,
   },
   label: {
     fontSize: 12,
     color: '#9CA3AF',
-    textAlign: 'right',
-    marginTop: 4,
+    textAlign: 'center',
+    marginTop: 6,
   },
 });

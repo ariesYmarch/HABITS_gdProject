@@ -5,7 +5,17 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  Modal,
 } from 'react-native';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+  withDelay,
+  withSequence,
+  withSpring,
+} from 'react-native-reanimated';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { OnboardingStackParamList } from '../../types/navigation';
 import { ProgressBar } from '../../components/common/ProgressBar';
@@ -14,11 +24,9 @@ import { useAppStore } from '../../store';
 import { themes } from '../../theme/themes';
 import {
   recommendTemplates,
-  HABIT_CATEGORY_INFO,
 } from '../../data/habitTemplates';
 import type {
   HabitTemplateItem,
-  HabitTemplateCategory,
 } from '../../types/habit';
 
 type Props = NativeStackScreenProps<
@@ -26,59 +34,54 @@ type Props = NativeStackScreenProps<
   'HabitRecommendation'
 >;
 
-const CATEGORY_ORDER: HabitTemplateCategory[] = [
-  'morningRitual',
-  'commute',
-  'productivity',
-  'learning',
-  'health',
-  'relationship',
-  'mindset',
-  'finance',
-  'evening',
-  'periodic',
+// Swift-matching time period categories
+const TIME_PERIODS = [
+  { id: 'morning', emoji: '\uD83C\uDF05', label: '아침' },
+  { id: 'commute', emoji: '\uD83D\uDE89', label: '통근' },
+  { id: 'lunch', emoji: '\uD83C\uDF7D\uFE0F', label: '점심' },
+  { id: 'afternoon', emoji: '\u2600\uFE0F', label: '오후' },
+  { id: 'evening', emoji: '\uD83C\uDF06', label: '저녁' },
+  { id: 'bedtime', emoji: '\uD83C\uDF19', label: '취침 전' },
 ];
+
+// Map time periods to habit template categories
+const TIME_TO_CATEGORIES: Record<string, string[]> = {
+  morning: ['morningRitual', 'health'],
+  commute: ['commute', 'learning'],
+  lunch: ['relationship', 'mindset'],
+  afternoon: ['productivity', 'learning'],
+  evening: ['evening', 'relationship'],
+  bedtime: ['evening', 'mindset', 'health'],
+};
 
 export function HabitRecommendationStep({ navigation }: Props) {
   const themeId = useAppStore((s) => s.selectedTheme);
   const theme = themes[themeId];
+  const insets = useSafeAreaInsets();
+  const userName = useAppStore((s) => s.userName);
   const selectedHashtags = useAppStore((s) => s.selectedHashtags);
   const addHabit = useAppStore((s) => s.addHabit);
+  const completeOnboarding = useAppStore((s) => s.completeOnboarding);
 
+  const [activeTimePeriod, setActiveTimePeriod] = useState('morning');
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
-  const [activeCategory, setActiveCategory] =
-    useState<HabitTemplateCategory>('morningRitual');
+  const [showCompletion, setShowCompletion] = useState(false);
 
-  // Get recommendations based on user tags
+  // Completion animation values
+  const emojiScale = useSharedValue(0);
+  const textOpacity = useSharedValue(0);
+
+  // Get recommendations
   const recommended = useMemo(() => {
     const userTags = new Set(selectedHashtags);
-    return recommendTemplates(userTags, 30);
+    return recommendTemplates(userTags, 50);
   }, [selectedHashtags]);
 
-  const recommendedIds = useMemo(
-    () => new Set(recommended.map((t) => t.id)),
-    [recommended],
-  );
-
-  // Group by category for browsing
-  const categoryTemplates = useMemo(() => {
-    const result: Partial<Record<HabitTemplateCategory, HabitTemplateItem[]>> = {};
-    for (const template of recommended) {
-      if (!result[template.category]) {
-        result[template.category] = [];
-      }
-      result[template.category]!.push(template);
-    }
-    return result;
-  }, [recommended]);
-
-  // Filter categories that have recommendations
-  const availableCategories = useMemo(
-    () => CATEGORY_ORDER.filter((cat) => categoryTemplates[cat]?.length),
-    [categoryTemplates],
-  );
-
-  const currentTemplates = categoryTemplates[activeCategory] ?? [];
+  // Filter by time period
+  const filteredTemplates = useMemo(() => {
+    const cats = TIME_TO_CATEGORIES[activeTimePeriod] || [];
+    return recommended.filter((t) => cats.includes(t.category));
+  }, [recommended, activeTimePeriod]);
 
   const handleToggle = useCallback((id: number) => {
     setSelectedIds((prev) => {
@@ -106,61 +109,68 @@ export function HabitRecommendationStep({ navigation }: Props) {
         });
       }
     }
-    navigation.navigate('Completion');
-  }, [selectedIds, recommended, addHabit, navigation]);
 
-  const selectedCount = selectedIds.size;
+    // Show completion overlay
+    setShowCompletion(true);
+    emojiScale.value = withSequence(
+      withSpring(1.3, { damping: 6, stiffness: 180 }),
+      withSpring(1, { damping: 10, stiffness: 120 }),
+    );
+    textOpacity.value = withDelay(200, withTiming(1, { duration: 300 }));
+  }, [selectedIds, recommended, addHabit, emojiScale, textOpacity]);
+
+  const emojiStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: emojiScale.value }],
+  }));
+  const textStyle = useAnimatedStyle(() => ({ opacity: textOpacity.value }));
 
   return (
-    <View
-      style={[styles.container, { backgroundColor: theme.backgroundColor }]}>
-      {/* Header */}
+    <View style={[styles.container, { backgroundColor: theme.backgroundColor, paddingTop: insets.top, paddingBottom: insets.bottom + 24 }]}>
+      <ProgressBar current={9} total={10} />
+
+      {/* Header — Swift: "{userName}님을 위한 습관 🔑" */}
       <View style={styles.header}>
-        <Text style={[styles.stepLabel, { color: theme.textSecondary }]}>
-          Step 9 / 10
-        </Text>
         <Text style={[styles.title, { color: theme.textPrimary }]}>
-          습관을 선택하세요
+          {userName}님을 위한 습관 {'\uD83D\uDD11'}
         </Text>
         <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
-          성격 분석 결과에 맞춰 추천된 습관이에요{'\n'}
-          나중에 자유롭게 추가/삭제할 수 있어요
+          시간대를 선택해서 습관을 추천받으세요
         </Text>
       </View>
 
-      <ProgressBar current={9} total={10} showLabel={false} />
-
-      {/* Category Tabs */}
+      {/* Time Period Buttons — Swift style circular buttons */}
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
-        style={styles.categoryScroll}
-        contentContainerStyle={styles.categoryContent}>
-        {availableCategories.map((cat) => {
-          const info = HABIT_CATEGORY_INFO[cat];
-          const isActive = cat === activeCategory;
+        style={styles.timePeriodScroll}
+        contentContainerStyle={styles.timePeriodContent}>
+        {TIME_PERIODS.map((period) => {
+          const isActive = period.id === activeTimePeriod;
           return (
             <TouchableOpacity
-              key={cat}
-              style={[
-                styles.categoryChip,
-                isActive && {
-                  backgroundColor: theme.primaryColor + '15',
-                  borderColor: theme.primaryColor,
-                },
-              ]}
-              onPress={() => setActiveCategory(cat)}
+              key={period.id}
+              style={styles.timePeriodItem}
+              onPress={() => setActiveTimePeriod(period.id)}
               activeOpacity={0.7}>
-              <Text style={styles.categoryEmoji}>{info.emoji}</Text>
-              <Text
+              <View
                 style={[
-                  styles.categoryLabel,
+                  styles.timePeriodCircle,
                   isActive && {
-                    color: theme.primaryColor,
-                    fontWeight: '700',
+                    backgroundColor: theme.primaryColor + '20',
+                    borderColor: theme.primaryColor,
                   },
                 ]}>
-                {info.label}
+                <Text style={styles.timePeriodEmoji}>{period.emoji}</Text>
+              </View>
+              <Text
+                style={[
+                  styles.timePeriodLabel,
+                  {
+                    color: isActive ? theme.primaryColor : theme.textSecondary,
+                    fontWeight: isActive ? '700' : '400',
+                  },
+                ]}>
+                {period.label}
               </Text>
             </TouchableOpacity>
           );
@@ -172,103 +182,96 @@ export function HabitRecommendationStep({ navigation }: Props) {
         style={styles.listScroll}
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}>
-        {currentTemplates.map((template) => {
-          const isSelected = selectedIds.has(template.id);
-          return (
-            <TouchableOpacity
-              key={template.id}
-              style={[
-                styles.templateCard,
-                isSelected && {
-                  backgroundColor: theme.primaryColor + '08',
-                  borderColor: theme.primaryColor,
-                },
-              ]}
-              onPress={() => handleToggle(template.id)}
-              activeOpacity={0.7}>
-              <View style={styles.templateRow}>
-                <Text style={styles.templateEmoji}>{template.emoji}</Text>
-                <View style={styles.templateInfo}>
-                  <Text
+        {filteredTemplates.length === 0 ? (
+          <View style={styles.emptyState}>
+            <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
+              이 시간대에 맞는 추천 습관이 없어요
+            </Text>
+          </View>
+        ) : (
+          filteredTemplates.map((template) => {
+            const isSelected = selectedIds.has(template.id);
+            return (
+              <TouchableOpacity
+                key={template.id}
+                style={[
+                  styles.templateCard,
+                  isSelected && {
+                    backgroundColor: theme.primaryColor + '08',
+                    borderColor: theme.primaryColor,
+                  },
+                ]}
+                onPress={() => handleToggle(template.id)}
+                activeOpacity={0.7}>
+                <View style={styles.templateRow}>
+                  <View
                     style={[
-                      styles.templateTitle,
-                      { color: theme.textPrimary },
+                      styles.checkbox,
+                      isSelected && {
+                        backgroundColor: theme.primaryColor,
+                        borderColor: theme.primaryColor,
+                      },
                     ]}>
-                    {template.title}
-                  </Text>
-                  <View style={styles.templateMeta}>
+                    {isSelected && (
+                      <Text style={styles.checkIcon}>{'\u2713'}</Text>
+                    )}
+                  </View>
+                  <Text style={styles.templateEmoji}>{template.emoji}</Text>
+                  <View style={styles.templateInfo}>
                     <Text
                       style={[
-                        styles.metaText,
+                        styles.templateTitle,
+                        { color: theme.textPrimary },
+                      ]}>
+                      {template.title}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.templateDuration,
                         { color: theme.textSecondary },
                       ]}>
                       {template.estimatedMinutes}분
                     </Text>
-                    <Text
-                      style={[
-                        styles.metaDot,
-                        { color: theme.textSecondary },
-                      ]}>
-                      ·
-                    </Text>
-                    <Text
-                      style={[
-                        styles.metaText,
-                        { color: theme.textSecondary },
-                      ]}>
-                      {'⭐'.repeat(template.difficulty)}
-                    </Text>
                   </View>
                 </View>
-                <View
-                  style={[
-                    styles.checkbox,
-                    isSelected && {
-                      backgroundColor: theme.primaryColor,
-                      borderColor: theme.primaryColor,
-                    },
-                  ]}>
-                  {isSelected && (
-                    <Text style={styles.checkIcon}>✓</Text>
-                  )}
-                </View>
-              </View>
-
-              {/* Tags */}
-              <View style={styles.tagsRow}>
-                {template.strengthenTags.map((tag) => (
-                  <View
-                    key={tag}
-                    style={[
-                      styles.tagChip,
-                      { backgroundColor: theme.primaryColor + '10' },
-                    ]}>
-                    <Text
-                      style={[
-                        styles.tagText,
-                        { color: theme.primaryColor },
-                      ]}>
-                      {tag}
-                    </Text>
-                  </View>
-                ))}
-              </View>
-            </TouchableOpacity>
-          );
-        })}
+              </TouchableOpacity>
+            );
+          })
+        )}
       </ScrollView>
 
       {/* Footer */}
       <View style={styles.footer}>
-        <Text style={[styles.selectedCount, { color: theme.textSecondary }]}>
-          {selectedCount}개 선택됨
-        </Text>
         <GradientButton
-          title={selectedCount > 0 ? '습관 시작하기' : '건너뛰기'}
+          title={selectedIds.size > 0 ? '시작하기' : '건너뛰기'}
           onPress={handleComplete}
           style={styles.button}
         />
       </View>
+
+      {/* Completion Overlay — Swift style "준비 완료!" */}
+      {showCompletion && (
+        <View style={styles.overlay}>
+          <View style={[styles.overlayCard, { backgroundColor: theme.backgroundColor }]}>
+            <Animated.Text style={[styles.celebrationEmoji, emojiStyle]}>
+              {'\uD83C\uDF89'}
+            </Animated.Text>
+            <Animated.View style={textStyle}>
+              <Text style={[styles.completionTitle, { color: theme.primaryColor }]}>
+                준비 완료!
+              </Text>
+              <Text style={[styles.completionSubtitle, { color: theme.textSecondary }]}>
+                {userName}님의 HABITS 여정이 시작됩니다
+              </Text>
+            </Animated.View>
+            <GradientButton
+              title="시작하기"
+              onPress={completeOnboarding}
+              style={styles.overlayButton}
+            />
+          </View>
+        </View>
+      )}
     </View>
   );
 }
@@ -279,12 +282,8 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingHorizontal: 24,
-    paddingTop: 16,
-  },
-  stepLabel: {
-    fontSize: 13,
-    fontWeight: '500',
-    marginBottom: 4,
+    paddingTop: 12,
+    alignItems: 'center',
   },
   title: {
     fontSize: 22,
@@ -295,40 +294,51 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
   },
-  categoryScroll: {
-    maxHeight: 48,
-    marginTop: 12,
+  timePeriodScroll: {
+    maxHeight: 100,
+    marginTop: 16,
   },
-  categoryContent: {
-    paddingHorizontal: 24,
-    gap: 8,
+  timePeriodContent: {
+    paddingHorizontal: 20,
+    gap: 12,
   },
-  categoryChip: {
-    flexDirection: 'row',
+  timePeriodItem: {
     alignItems: 'center',
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 1.5,
-    borderColor: '#E5E7EB',
-    gap: 4,
+    width: 64,
   },
-  categoryEmoji: {
-    fontSize: 14,
+  timePeriodCircle: {
+    width: 56,
+    height: 56,
+    borderRadius: 28,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F3F4F6',
+    borderWidth: 2,
+    borderColor: 'transparent',
+    marginBottom: 6,
   },
-  categoryLabel: {
-    fontSize: 13,
-    fontWeight: '500',
-    color: '#6B7280',
+  timePeriodEmoji: {
+    fontSize: 24,
+  },
+  timePeriodLabel: {
+    fontSize: 12,
+    textAlign: 'center',
   },
   listScroll: {
     flex: 1,
-    marginTop: 12,
+    marginTop: 8,
   },
   listContent: {
     paddingHorizontal: 24,
     paddingBottom: 16,
-    gap: 10,
+    gap: 8,
+  },
+  emptyState: {
+    paddingVertical: 40,
+    alignItems: 'center',
+  },
+  emptyText: {
+    fontSize: 14,
   },
   templateCard: {
     backgroundColor: '#FFFFFF',
@@ -336,15 +346,25 @@ const styles = StyleSheet.create({
     borderWidth: 1.5,
     borderColor: '#E5E7EB',
     padding: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.03,
-    shadowRadius: 4,
-    elevation: 1,
   },
   templateRow: {
     flexDirection: 'row',
     alignItems: 'center',
+  },
+  checkbox: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    borderWidth: 2,
+    borderColor: '#D1D5DB',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 12,
+  },
+  checkIcon: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '700',
   },
   templateEmoji: {
     fontSize: 28,
@@ -356,61 +376,54 @@ const styles = StyleSheet.create({
   templateTitle: {
     fontSize: 15,
     fontWeight: '600',
-    marginBottom: 4,
+    marginBottom: 2,
   },
-  templateMeta: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  metaText: {
+  templateDuration: {
     fontSize: 12,
-    fontWeight: '500',
-  },
-  metaDot: {
-    fontSize: 12,
-  },
-  checkbox: {
-    width: 26,
-    height: 26,
-    borderRadius: 13,
-    borderWidth: 2,
-    borderColor: '#D1D5DB',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginLeft: 8,
-  },
-  checkIcon: {
-    color: '#FFFFFF',
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  tagsRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 4,
-    marginTop: 10,
-  },
-  tagChip: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 8,
-  },
-  tagText: {
-    fontSize: 11,
     fontWeight: '500',
   },
   footer: {
     paddingHorizontal: 24,
-    paddingBottom: 40,
-    alignItems: 'center',
-  },
-  selectedCount: {
-    fontSize: 13,
-    fontWeight: '500',
-    marginBottom: 10,
   },
   button: {
+    width: '100%',
+  },
+  // Completion overlay
+  overlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(0,0,0,0.3)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 32,
+    zIndex: 100,
+  },
+  overlayCard: {
+    borderRadius: 24,
+    padding: 40,
+    alignItems: 'center',
+    width: '100%',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 16,
+    elevation: 10,
+  },
+  celebrationEmoji: {
+    fontSize: 80,
+    marginBottom: 16,
+  },
+  completionTitle: {
+    fontSize: 28,
+    fontWeight: '800',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  completionSubtitle: {
+    fontSize: 15,
+    textAlign: 'center',
+    marginBottom: 28,
+  },
+  overlayButton: {
     width: '100%',
   },
 });

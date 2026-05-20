@@ -28,28 +28,32 @@ export function GradientButton({
   const themeId = useAppStore((s) => s.selectedTheme);
   const theme = themes[themeId];
 
-  if (disabled) {
-    return (
-      <TouchableOpacity
-        style={[styles.button, styles.disabledButton, style]}
-        disabled
-        activeOpacity={0.7}>
-        <Text style={[styles.text, styles.disabledText, textStyle]}>
-          {title}
-        </Text>
-      </TouchableOpacity>
-    );
-  }
+  const disabledColors = ['#D5D9E0', '#C8CDD5'];
 
   return (
-    <TouchableOpacity onPress={onPress} activeOpacity={0.8} style={style}>
+    <TouchableOpacity
+      onPress={disabled ? undefined : onPress}
+      activeOpacity={disabled ? 1 : 0.8}
+      disabled={disabled}
+      style={[styles.button, style]}>
       <LinearGradient
-        colors={theme.gradientColors}
+        colors={
+          disabled
+            ? disabledColors
+            : [theme.gradientColors[1], theme.gradientColors[2]]
+        }
         start={{ x: 0, y: 0 }}
         end={{ x: 1, y: 0 }}
-        style={styles.button}>
-        <Text style={[styles.text, textStyle]}>{title}</Text>
-      </LinearGradient>
+        style={StyleSheet.absoluteFill}
+      />
+      <Text
+        style={[
+          styles.text,
+          disabled && styles.disabledText,
+          textStyle,
+        ]}>
+        {title}
+      </Text>
     </TouchableOpacity>
   );
 }
@@ -61,9 +65,7 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
-  },
-  disabledButton: {
-    backgroundColor: '#D1D5DB',
+    overflow: 'hidden',
   },
   text: {
     color: '#FFFFFF',
@@ -71,6 +73,6 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   disabledText: {
-    color: '#9CA3AF',
+    color: '#A0A8B4',
   },
 });

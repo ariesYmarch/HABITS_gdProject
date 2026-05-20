@@ -27,13 +27,14 @@ export const EMOTIONS: EmotionInfo[] = [
 ];
 
 export interface DiaryEntry {
-  id: string;
+  id: string;                            // 클라이언트 생성 (sync의 client_id로 사용)
   date: string;
   moodScore: number; // -1 to 1
   emotionTags: string[];
   textContent?: string;
-  habitSatisfaction?: 'satisfied' | 'neutral' | 'unsatisfied';
   emotionAnalysis?: EmotionAnalysisResult;
+  updatedAt?: string;                    // sync용 LWW 비교 timestamp
+  deletedAt?: string;                    // sync용 soft delete tombstone
 }
 
 export interface EmotionAnalysisResult {

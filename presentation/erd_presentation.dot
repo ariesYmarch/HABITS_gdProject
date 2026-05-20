@@ -1,0 +1,128 @@
+
+digraph ERD {
+    graph [
+        rankdir=TB
+        bgcolor=white
+        fontname="Arial"
+        pad="0.4"
+        nodesep=0.6
+        ranksep=0.9
+        label="HABITS 데이터베이스 ERD"
+        labelloc=t
+        labeljust=c
+        fontsize=20
+    ]
+    node [
+        shape=none
+        fontname="Arial"
+        fontsize=11
+    ]
+    edge [
+        fontname="Arial"
+        fontsize=9
+        color="#666666"
+        fontcolor="#555555"
+    ]
+
+    users [label=<
+        <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="6" BGCOLOR="white" COLOR="#444444">
+            <TR><TD COLSPAN="2" BGCOLOR="#444444"><FONT COLOR="white"><B>users</B></FONT></TD></TR>
+            <TR><TD ALIGN="LEFT"><B>id</B> PK</TD><TD ALIGN="LEFT">int</TD></TR>
+            <TR><TD ALIGN="LEFT">nickname</TD><TD ALIGN="LEFT">string</TD></TR>
+            <TR><TD ALIGN="LEFT">occupation</TD><TD ALIGN="LEFT">string</TD></TR>
+        </TABLE>
+    >]
+
+    personality_results [label=<
+        <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="6" BGCOLOR="white" COLOR="#444444">
+            <TR><TD COLSPAN="2" BGCOLOR="#666666"><FONT COLOR="white"><B>personality_results</B></FONT></TD></TR>
+            <TR><TD ALIGN="LEFT"><B>id</B> PK</TD><TD ALIGN="LEFT">int</TD></TR>
+            <TR><TD ALIGN="LEFT"><I>user_id</I> FK</TD><TD ALIGN="LEFT">int</TD></TR>
+            <TR><TD ALIGN="LEFT">test_type</TD><TD ALIGN="LEFT">string</TD></TR>
+            <TR><TD ALIGN="LEFT">type_name</TD><TD ALIGN="LEFT">string</TD></TR>
+        </TABLE>
+    >]
+
+    schedules [label=<
+        <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="6" BGCOLOR="white" COLOR="#444444">
+            <TR><TD COLSPAN="2" BGCOLOR="#666666"><FONT COLOR="white"><B>schedules</B></FONT></TD></TR>
+            <TR><TD ALIGN="LEFT"><B>id</B> PK</TD><TD ALIGN="LEFT">int</TD></TR>
+            <TR><TD ALIGN="LEFT"><I>user_id</I> FK</TD><TD ALIGN="LEFT">int</TD></TR>
+            <TR><TD ALIGN="LEFT">timetable</TD><TD ALIGN="LEFT">JSONB</TD></TR>
+        </TABLE>
+    >]
+
+    habits [label=<
+        <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="6" BGCOLOR="white" COLOR="#444444">
+            <TR><TD COLSPAN="2" BGCOLOR="#555555"><FONT COLOR="white"><B>habits</B></FONT></TD></TR>
+            <TR><TD ALIGN="LEFT"><B>id</B> PK</TD><TD ALIGN="LEFT">int</TD></TR>
+            <TR><TD ALIGN="LEFT"><I>user_id</I> FK</TD><TD ALIGN="LEFT">int</TD></TR>
+            <TR><TD ALIGN="LEFT">title, emoji</TD><TD ALIGN="LEFT">string</TD></TR>
+            <TR><TD ALIGN="LEFT">category</TD><TD ALIGN="LEFT">string</TD></TR>
+            <TR><TD ALIGN="LEFT">frequency</TD><TD ALIGN="LEFT">string</TD></TR>
+        </TABLE>
+    >]
+
+    habit_logs [label=<
+        <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="6" BGCOLOR="white" COLOR="#444444">
+            <TR><TD COLSPAN="2" BGCOLOR="#777777"><FONT COLOR="white"><B>habit_logs</B></FONT></TD></TR>
+            <TR><TD ALIGN="LEFT"><B>id</B> PK</TD><TD ALIGN="LEFT">int</TD></TR>
+            <TR><TD ALIGN="LEFT"><I>habit_id</I> FK</TD><TD ALIGN="LEFT">int</TD></TR>
+            <TR><TD ALIGN="LEFT">date</TD><TD ALIGN="LEFT">string</TD></TR>
+            <TR><TD ALIGN="LEFT">completed</TD><TD ALIGN="LEFT">bool</TD></TR>
+        </TABLE>
+    >]
+
+    diaries [label=<
+        <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="6" BGCOLOR="white" COLOR="#444444">
+            <TR><TD COLSPAN="2" BGCOLOR="#555555"><FONT COLOR="white"><B>diaries</B></FONT></TD></TR>
+            <TR><TD ALIGN="LEFT"><B>id</B> PK</TD><TD ALIGN="LEFT">int</TD></TR>
+            <TR><TD ALIGN="LEFT"><I>user_id</I> FK</TD><TD ALIGN="LEFT">int</TD></TR>
+            <TR><TD ALIGN="LEFT">mood_score</TD><TD ALIGN="LEFT">float</TD></TR>
+            <TR><TD ALIGN="LEFT">text_content</TD><TD ALIGN="LEFT">string</TD></TR>
+        </TABLE>
+    >]
+
+    emotion_analyses [label=<
+        <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="6" BGCOLOR="white" COLOR="#444444">
+            <TR><TD COLSPAN="2" BGCOLOR="#777777"><FONT COLOR="white"><B>emotion_analyses</B></FONT></TD></TR>
+            <TR><TD ALIGN="LEFT"><B>id</B> PK</TD><TD ALIGN="LEFT">int</TD></TR>
+            <TR><TD ALIGN="LEFT"><I>diary_id</I> FK</TD><TD ALIGN="LEFT">int</TD></TR>
+            <TR><TD ALIGN="LEFT">main_emotion</TD><TD ALIGN="LEFT">string</TD></TR>
+            <TR><TD ALIGN="LEFT">confidence</TD><TD ALIGN="LEFT">float</TD></TR>
+            <TR><TD ALIGN="LEFT">distribution</TD><TD ALIGN="LEFT">JSONB</TD></TR>
+        </TABLE>
+    >]
+
+    ai_reports [label=<
+        <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="6" BGCOLOR="white" COLOR="#444444">
+            <TR><TD COLSPAN="2" BGCOLOR="#555555"><FONT COLOR="white"><B>ai_reports</B></FONT></TD></TR>
+            <TR><TD ALIGN="LEFT"><B>id</B> PK</TD><TD ALIGN="LEFT">int</TD></TR>
+            <TR><TD ALIGN="LEFT"><I>user_id</I> FK</TD><TD ALIGN="LEFT">int</TD></TR>
+            <TR><TD ALIGN="LEFT">period_type</TD><TD ALIGN="LEFT">string</TD></TR>
+            <TR><TD ALIGN="LEFT">completion_rate</TD><TD ALIGN="LEFT">float</TD></TR>
+            <TR><TD ALIGN="LEFT">insight</TD><TD ALIGN="LEFT">string</TD></TR>
+        </TABLE>
+    >]
+
+    recommendation_logs [label=<
+        <TABLE BORDER="1" CELLBORDER="0" CELLSPACING="0" CELLPADDING="6" BGCOLOR="white" COLOR="#444444">
+            <TR><TD COLSPAN="2" BGCOLOR="#555555"><FONT COLOR="white"><B>recommendation_logs</B></FONT></TD></TR>
+            <TR><TD ALIGN="LEFT"><B>id</B> PK</TD><TD ALIGN="LEFT">int</TD></TR>
+            <TR><TD ALIGN="LEFT"><I>user_id</I> FK</TD><TD ALIGN="LEFT">int</TD></TR>
+            <TR><TD ALIGN="LEFT">template_id</TD><TD ALIGN="LEFT">int</TD></TR>
+            <TR><TD ALIGN="LEFT">match_score</TD><TD ALIGN="LEFT">float</TD></TR>
+            <TR><TD ALIGN="LEFT">action</TD><TD ALIGN="LEFT">string</TD></TR>
+        </TABLE>
+    >]
+
+    // Relationships
+    users -> personality_results [label="1 : N\nhas" arrowhead=crow]
+    users -> schedules [label="1 : 1\nhas" arrowhead=none]
+    users -> habits [label="1 : N\nhas" arrowhead=crow]
+    users -> diaries [label="1 : N\nwrites" arrowhead=crow]
+    users -> ai_reports [label="1 : N\nreceives" arrowhead=crow]
+    users -> recommendation_logs [label="1 : N\nreceives" arrowhead=crow]
+    habits -> habit_logs [label="1 : N\ntracks" arrowhead=crow]
+    diaries -> emotion_analyses [label="1 : 1\nanalyzed_by" arrowhead=none]
+}

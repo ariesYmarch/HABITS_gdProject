@@ -14,7 +14,7 @@ export type TimeSlot =
   | 'anytime';
 
 export interface Habit {
-  id: string;
+  id: string;                          // 클라이언트 생성 (sync의 client_id로 사용)
   title: string;
   emoji: string;
   hashtags: string[];
@@ -25,6 +25,8 @@ export interface Habit {
   isActive: boolean;
   createdDate: string;
   deactivatedDate?: string;
+  updatedAt?: string;                  // sync용 LWW 비교 timestamp (ISO string)
+  deletedAt?: string;                  // sync용 soft delete tombstone
 }
 
 export interface HabitTemplateItem {

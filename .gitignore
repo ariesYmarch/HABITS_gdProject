@@ -42,3 +42,10 @@ frontend/ios/Pods/
 # Temporary files
 *.log
 *.tmp
+
+# 작업용 임시 파일
+CLAUDE.md
+.claude/
+temp_frames/
+*.mov
+*.mp4

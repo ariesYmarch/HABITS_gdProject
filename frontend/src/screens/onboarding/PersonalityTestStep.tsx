@@ -6,13 +6,12 @@ import {
   TouchableOpacity,
   FlatList,
   Dimensions,
+  LayoutChangeEvent,
 } from 'react-native';
-import type { NativeStackScreenProps } from '@react-navigation/native-stack';
-import { OnboardingStackParamList } from '../../types/navigation';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { PersonalityTestType, TestQuestion } from '../../types/personality';
 import { getTestQuestions, analyzeTestResult } from '../../data/personalityTestQuestions';
 import { ProgressBar } from '../../components/common/ProgressBar';
-import { GradientButton } from '../../components/common/GradientButton';
 import { TestQuestionCard } from '../../components/personality/TestQuestionCard';
 import { useAppStore } from '../../store';
 import { themes } from '../../theme/themes';
@@ -32,10 +31,12 @@ export function PersonalityTestStep({
 }: PersonalityTestStepProps) {
   const themeId = useAppStore((s) => s.selectedTheme);
   const theme = themes[themeId];
+  const insets = useSafeAreaInsets();
   const questions = getTestQuestions(testType);
 
   const [answers, setAnswers] = useState<Record<number, boolean>>({});
   const [currentIndex, setCurrentIndex] = useState(0);
+  const [listHeight, setListHeight] = useState(0);
   const flatListRef = useRef<FlatList>(null);
 
   const answeredCount = Object.keys(answers).length;
@@ -76,19 +77,47 @@ export function PersonalityTestStep({
     onComplete(result.personalityType?.id ?? null);
   }, [answers, testType, onComplete]);
 
+  // Auto-advance after answering and all answered → complete
+  const handleSelectAndAdvance = useCallback(
+    (questionId: number, choseA: boolean) => {
+      const newAnswers = { ...answers, [questionId]: choseA };
+      setAnswers(newAnswers);
+
+      // Check if all answered
+      const allDone = Object.keys(newAnswers).length === questions.length;
+      if (allDone) {
+        // Auto complete after small delay
+        setTimeout(() => {
+          const result = analyzeTestResult(newAnswers, testType);
+          onComplete(result.personalityType?.id ?? null);
+        }, 400);
+      } else if (currentIndex < questions.length - 1) {
+        // Auto advance to next question
+        setTimeout(() => {
+          goToQuestion(currentIndex + 1);
+        }, 300);
+      }
+    },
+    [answers, currentIndex, goToQuestion, questions.length, testType, onComplete],
+  );
+
+  const handleListLayout = useCallback((e: LayoutChangeEvent) => {
+    setListHeight(e.nativeEvent.layout.height);
+  }, []);
+
   const renderQuestion = useCallback(
     ({ item, index }: { item: TestQuestion; index: number }) => (
-      <View style={{ width: SCREEN_WIDTH }}>
+      <View style={{ width: SCREEN_WIDTH, height: listHeight || undefined, justifyContent: 'center' }}>
         <TestQuestionCard
           question={item}
           questionIndex={index}
           totalQuestions={questions.length}
           selectedChoice={answers[item.id]}
-          onSelectChoice={(choseA) => handleSelectChoice(item.id, choseA)}
+          onSelectChoice={(choseA) => handleSelectAndAdvance(item.id, choseA)}
         />
       </View>
     ),
-    [answers, handleSelectChoice, questions.length],
+    [answers, handleSelectAndAdvance, questions.length, listHeight],
   );
 
   const getItemLayout = useCallback(
@@ -101,26 +130,9 @@ export function PersonalityTestStep({
   );
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.backgroundColor }]}>
-      {/* Header */}
-      <View style={styles.header}>
-        <Text style={[styles.stepLabel, { color: theme.textSecondary }]}>
-          Step {stepNumber} / 10
-        </Text>
-        <Text style={[styles.title, { color: theme.textPrimary }]}>
-          {testType === 'current'
-            ? '현재의 나 성격 테스트'
-            : '이상적인 나 성격 테스트'}
-        </Text>
-        <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
-          {testType === 'current'
-            ? '지금의 나에 가장 가까운 답을 골라주세요'
-            : '되고 싶은 나의 모습에 가까운 답을 골라주세요'}
-        </Text>
-      </View>
-
-      {/* Progress */}
-      <ProgressBar current={answeredCount} total={questions.length} />
+    <View style={[styles.container, { backgroundColor: theme.backgroundColor, paddingTop: insets.top, paddingBottom: insets.bottom + 24 }]}>
+      {/* Progress bar — Swift style */}
+      <ProgressBar current={stepNumber} total={10} />
 
       {/* Question List (horizontal pager) */}
       <FlatList
@@ -133,86 +145,48 @@ export function PersonalityTestStep({
         showsHorizontalScrollIndicator={false}
         scrollEnabled={false}
         getItemLayout={getItemLayout}
+        onLayout={handleListLayout}
         style={styles.questionList}
-        contentContainerStyle={styles.questionListContent}
       />
 
-      {/* Navigation Arrows + Complete Button */}
+      {/* Navigation — Swift style: "< 이전" and "다음 >" */}
       <View style={styles.footer}>
         <View style={styles.navRow}>
           <TouchableOpacity
-            style={[
-              styles.arrowButton,
-              currentIndex === 0 && styles.arrowDisabled,
-            ]}
+            style={styles.navButton}
             onPress={handlePrev}
             disabled={currentIndex === 0}>
             <Text
               style={[
-                styles.arrowText,
-                currentIndex === 0 && styles.arrowTextDisabled,
+                styles.navText,
+                { color: currentIndex === 0 ? '#D1D5DB' : theme.textSecondary },
               ]}>
-              ← 이전
+              {'<'}  이전
             </Text>
           </TouchableOpacity>
 
-          {/* Dot indicators (mini) */}
-          <View style={styles.dotContainer}>
-            {questions.map((q, idx) => (
-              <View
-                key={q.id}
-                style={[
-                  styles.dot,
-                  idx === currentIndex && {
-                    backgroundColor: theme.primaryColor,
-                    width: 8,
-                    height: 8,
-                  },
-                  answers[q.id] !== undefined &&
-                    idx !== currentIndex && {
-                      backgroundColor: theme.primaryColor + '60',
-                    },
-                ]}
-              />
-            ))}
-          </View>
-
           <TouchableOpacity
-            style={[
-              styles.arrowButton,
-              currentIndex === questions.length - 1 && styles.arrowDisabled,
-            ]}
+            style={styles.navButton}
             onPress={handleNext}
-            disabled={currentIndex === questions.length - 1}>
+            disabled={
+              currentIndex === questions.length - 1 ||
+              answers[currentQuestion?.id] === undefined
+            }>
             <Text
               style={[
-                styles.arrowText,
-                currentIndex === questions.length - 1 &&
-                  styles.arrowTextDisabled,
+                styles.navText,
+                {
+                  color:
+                    answers[currentQuestion?.id] !== undefined &&
+                    currentIndex < questions.length - 1
+                      ? theme.primaryColor
+                      : '#D1D5DB',
+                },
               ]}>
-              다음 →
+              다음  {'>'}
             </Text>
           </TouchableOpacity>
         </View>
-
-        {isAllAnswered && (
-          <GradientButton
-            title="분석하기"
-            onPress={handleComplete}
-            style={styles.completeButton}
-          />
-        )}
-
-        {!isAllAnswered && answers[currentQuestion?.id] !== undefined && (
-          <TouchableOpacity
-            style={[styles.skipToNextBtn, { borderColor: theme.primaryColor }]}
-            onPress={handleNext}
-            disabled={currentIndex === questions.length - 1}>
-            <Text style={[styles.skipToNextText, { color: theme.primaryColor }]}>
-              다음 질문으로
-            </Text>
-          </TouchableOpacity>
-        )}
       </View>
     </View>
   );
@@ -222,80 +196,23 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  header: {
-    paddingHorizontal: 24,
-    paddingTop: 16,
-  },
-  stepLabel: {
-    fontSize: 13,
-    fontWeight: '500',
-    marginBottom: 4,
-  },
-  title: {
-    fontSize: 22,
-    fontWeight: '700',
-    marginBottom: 6,
-  },
-  subtitle: {
-    fontSize: 14,
-    lineHeight: 20,
-  },
   questionList: {
     flex: 1,
   },
-  questionListContent: {
-    alignItems: 'center',
-  },
   footer: {
     paddingHorizontal: 24,
-    paddingBottom: 40,
   },
   navRow: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    marginBottom: 12,
   },
-  arrowButton: {
-    paddingVertical: 10,
-    paddingHorizontal: 4,
+  navButton: {
+    paddingVertical: 12,
+    paddingHorizontal: 8,
   },
-  arrowDisabled: {
-    opacity: 0.3,
-  },
-  arrowText: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#374151',
-  },
-  arrowTextDisabled: {
-    color: '#9CA3AF',
-  },
-  dotContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-    flexWrap: 'wrap',
-    maxWidth: 200,
-    justifyContent: 'center',
-  },
-  dot: {
-    width: 6,
-    height: 6,
-    borderRadius: 4,
-    backgroundColor: '#D1D5DB',
-  },
-  completeButton: {
-    width: '100%',
-  },
-  skipToNextBtn: {
-    borderWidth: 1.5,
-    borderRadius: 14,
-    paddingVertical: 14,
-    alignItems: 'center',
-  },
-  skipToNextText: {
+  navText: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: '400',
   },
 });

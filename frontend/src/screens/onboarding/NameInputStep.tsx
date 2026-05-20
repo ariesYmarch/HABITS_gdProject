@@ -3,11 +3,11 @@ import {
   View,
   Text,
   TextInput,
-  TouchableOpacity,
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { OnboardingStackParamList } from '../../types/navigation';
 import { GradientButton } from '../../components/common/GradientButton';
@@ -17,60 +17,38 @@ import { themes } from '../../theme/themes';
 
 type Props = NativeStackScreenProps<OnboardingStackParamList, 'NameInput'>;
 
-const ICON_OPTIONS = ['😀', '😎', '🦊', '🐱', '🌸', '🌈', '⭐', '🎵'];
-
 export function NameInputStep({ navigation }: Props) {
   const themeId = useAppStore((s) => s.selectedTheme);
   const theme = themes[themeId];
   const setUserName = useAppStore((s) => s.setUserName);
   const setUserIcon = useAppStore((s) => s.setUserIcon);
 
+  const insets = useSafeAreaInsets();
   const [name, setName] = useState('');
-  const [selectedIcon, setSelectedIcon] = useState('😀');
 
   const isValid = name.trim().length > 0;
 
   const handleNext = () => {
     setUserName(name.trim());
-    setUserIcon(selectedIcon);
-    navigation.navigate('CurrentPersonalityTest');
+    setUserIcon('\uD83D\uDE00');
+    navigation.navigate('Guide');
   };
 
   return (
     <KeyboardAvoidingView
-      style={[styles.container, { backgroundColor: theme.backgroundColor }]}
+      style={[styles.container, { backgroundColor: theme.backgroundColor, paddingTop: insets.top, paddingBottom: insets.bottom + 24 }]}
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-      <ProgressBar current={2} total={10} />
+      <ProgressBar current={1} total={10} />
+
+      <View style={styles.spacerTop} />
 
       <View style={styles.content}>
         <Text style={[styles.greeting, { color: theme.textPrimary }]}>
-          반갑습니다! 👋
+          반갑습니다! {'\uD83D\uDC4B'}
         </Text>
         <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
-          이름과 프로필 아이콘을 선택해주세요
+          앱에서 사용할 이름을 알려주세요
         </Text>
-
-        {/* 아이콘 선택 */}
-        <View style={styles.iconSection}>
-          <Text style={[styles.selectedIcon]}>{selectedIcon}</Text>
-          <View style={styles.iconGrid}>
-            {ICON_OPTIONS.map((icon) => (
-              <TouchableOpacity
-                key={icon}
-                style={[
-                  styles.iconButton,
-                  selectedIcon === icon && {
-                    backgroundColor: theme.primaryColor + '1A',
-                    borderColor: theme.primaryColor,
-                    borderWidth: 2,
-                  },
-                ]}
-                onPress={() => setSelectedIcon(icon)}>
-                <Text style={styles.iconText}>{icon}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
 
         {/* 이름 입력 */}
         <TextInput
@@ -85,16 +63,18 @@ export function NameInputStep({ navigation }: Props) {
           maxLength={20}
           autoFocus
         />
+
+        <View style={styles.buttonWrapper}>
+          <GradientButton
+            title="다음"
+            onPress={handleNext}
+            disabled={!isValid}
+            style={styles.button}
+          />
+        </View>
       </View>
 
-      <View style={styles.buttonWrapper}>
-        <GradientButton
-          title="다음"
-          onPress={handleNext}
-          disabled={!isValid}
-          style={styles.button}
-        />
-      </View>
+      <View style={styles.spacerBottom} />
     </KeyboardAvoidingView>
   );
 }
@@ -103,56 +83,39 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  content: {
+  spacerTop: {
     flex: 1,
+  },
+  content: {
     paddingHorizontal: 24,
-    paddingTop: 32,
+    alignItems: 'center',
   },
   greeting: {
-    fontSize: 22,
+    fontSize: 24,
     fontWeight: '700',
-    marginBottom: 8,
+    marginBottom: 10,
+    textAlign: 'center',
   },
   subtitle: {
     fontSize: 15,
     marginBottom: 32,
-  },
-  iconSection: {
-    alignItems: 'center',
-    marginBottom: 32,
-  },
-  selectedIcon: {
-    fontSize: 64,
-    marginBottom: 16,
-  },
-  iconGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'center',
-    gap: 12,
-  },
-  iconButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 14,
-    backgroundColor: 'rgba(0,0,0,0.04)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  iconText: {
-    fontSize: 24,
+    textAlign: 'center',
   },
   input: {
     fontSize: 16,
     padding: 16,
     borderRadius: 12,
     color: '#1A1A2E',
+    width: '100%',
   },
   buttonWrapper: {
-    paddingHorizontal: 24,
-    paddingBottom: 40,
+    width: '100%',
+    marginTop: 40,
   },
   button: {
     width: '100%',
+  },
+  spacerBottom: {
+    flex: 1.2,
   },
 });

@@ -1,11 +1,14 @@
 import React, { useEffect } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
   withTiming,
   withDelay,
 } from 'react-native-reanimated';
+import LinearGradient from 'react-native-linear-gradient';
+import { GradientText } from '../../components/common/GradientText';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { OnboardingStackParamList } from '../../types/navigation';
 import { GradientButton } from '../../components/common/GradientButton';
@@ -17,6 +20,7 @@ type Props = NativeStackScreenProps<OnboardingStackParamList, 'Welcome'>;
 export function WelcomeStep({ navigation }: Props) {
   const themeId = useAppStore((s) => s.selectedTheme);
   const theme = themes[themeId];
+  const insets = useSafeAreaInsets();
 
   const logoOpacity = useSharedValue(0);
   const titleOpacity = useSharedValue(0);
@@ -24,10 +28,10 @@ export function WelcomeStep({ navigation }: Props) {
   const btnOpacity = useSharedValue(0);
 
   useEffect(() => {
-    logoOpacity.value = withTiming(1, { duration: 600 });
-    titleOpacity.value = withDelay(300, withTiming(1, { duration: 600 }));
-    descOpacity.value = withDelay(600, withTiming(1, { duration: 600 }));
-    btnOpacity.value = withDelay(900, withTiming(1, { duration: 600 }));
+    logoOpacity.value = withTiming(1, { duration: 400 });
+    titleOpacity.value = withDelay(200, withTiming(1, { duration: 400 }));
+    descOpacity.value = withDelay(350, withTiming(1, { duration: 400 }));
+    btnOpacity.value = withDelay(500, withTiming(1, { duration: 400 }));
   }, []);
 
   const logoStyle = useAnimatedStyle(() => ({ opacity: logoOpacity.value }));
@@ -36,9 +40,35 @@ export function WelcomeStep({ navigation }: Props) {
   const btnStyle = useAnimatedStyle(() => ({ opacity: btnOpacity.value }));
 
   return (
-    <View style={[styles.container, { backgroundColor: theme.backgroundColor }]}>
+    <View style={[styles.container, { backgroundColor: theme.backgroundColor, paddingTop: insets.top, paddingBottom: insets.bottom + 24 }]}>
       <View style={styles.content}>
-        <Animated.Text style={[styles.emoji, logoStyle]}>🧘‍♀️</Animated.Text>
+        {/* 3D Cube-style HABITS Logo */}
+        <Animated.View style={[styles.logoWrapper, logoStyle]}>
+          <View style={styles.cubeContainer}>
+            {/* Top face */}
+            <LinearGradient
+              colors={['#EFF8D1', 'transparent']}
+              style={styles.cubeTopFace}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+            />
+            {/* Front face */}
+            <LinearGradient
+              colors={['#DBEFD8', '#ACD9E9', '#98D2F0']}
+              style={styles.cubeFrontFace}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 0, y: 1 }}
+            />
+            {/* Right face */}
+            <LinearGradient
+              colors={['#9CDBEE', '#6BE1EE', '#97E7EC']}
+              style={styles.cubeRightFace}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+            />
+          </View>
+          <GradientText text="HABITS" colors={theme.gradientColors} style={styles.logoText} />
+        </Animated.View>
 
         <Animated.View style={titleStyle}>
           <Text style={[styles.title, { color: theme.primaryColor }]}>
@@ -48,15 +78,14 @@ export function WelcomeStep({ navigation }: Props) {
 
         <Animated.View style={descStyle}>
           <Text style={[styles.description, { color: theme.textSecondary }]}>
-            심리 이론 기반의 자아 탐색과{'\n'}AI 감정 분석을 통한{'\n'}개인
-            맞춤형 습관 코칭 서비스
+            성격을 분석하고 맞춤 습관을 추천받아보세요!
           </Text>
         </Animated.View>
       </View>
 
       <Animated.View style={[styles.buttonWrapper, btnStyle]}>
         <GradientButton
-          title="시작하기"
+          title="시작!"
           onPress={() => navigation.navigate('NameInput')}
           style={styles.button}
         />
@@ -75,23 +104,68 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  emoji: {
-    fontSize: 80,
+  logoWrapper: {
+    width: 200,
+    height: 200,
+    alignItems: 'center',
+    justifyContent: 'center',
     marginBottom: 24,
   },
+  cubeContainer: {
+    width: 140,
+    height: 140,
+    position: 'absolute',
+  },
+  cubeTopFace: {
+    width: 90,
+    height: 45,
+    borderRadius: 10,
+    position: 'absolute',
+    top: 5,
+    left: 25,
+    opacity: 0.3,
+    transform: [{ skewX: '-10deg' }],
+  },
+  cubeFrontFace: {
+    width: 85,
+    height: 80,
+    borderBottomLeftRadius: 12,
+    borderBottomRightRadius: 12,
+    borderTopLeftRadius: 4,
+    position: 'absolute',
+    top: 35,
+    left: 10,
+    opacity: 0.35,
+  },
+  cubeRightFace: {
+    width: 65,
+    height: 80,
+    borderBottomRightRadius: 12,
+    borderTopRightRadius: 4,
+    position: 'absolute',
+    top: 35,
+    left: 70,
+    opacity: 0.6,
+  },
+  logoText: {
+    fontSize: 42,
+    fontWeight: '900',
+    letterSpacing: 2,
+    zIndex: 10,
+  },
   title: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: '700',
     textAlign: 'center',
-    marginBottom: 16,
+    marginBottom: 12,
   },
   description: {
-    fontSize: 15,
+    fontSize: 16,
     textAlign: 'center',
     lineHeight: 24,
   },
   buttonWrapper: {
-    paddingBottom: 40,
+    paddingHorizontal: 0,
   },
   button: {
     width: '100%',

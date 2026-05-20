@@ -1,5 +1,6 @@
 import React, { useEffect } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -12,10 +13,12 @@ import { ProgressBar } from '../../components/common/ProgressBar';
 import { GradientButton } from '../../components/common/GradientButton';
 import { useAppStore } from '../../store';
 import { themes } from '../../theme/themes';
+import { ClipboardList, Target, FileText, PartyPopper } from 'lucide-react-native';
 
 export function CompletionStep() {
   const themeId = useAppStore((s) => s.selectedTheme);
   const theme = themes[themeId];
+  const insets = useSafeAreaInsets();
   const userName = useAppStore((s) => s.userName);
   const userIcon = useAppStore((s) => s.userIcon);
   const habits = useAppStore((s) => s.habits);
@@ -32,9 +35,9 @@ export function CompletionStep() {
       withSpring(1.3, { damping: 6, stiffness: 180 }),
       withSpring(1, { damping: 10, stiffness: 120 }),
     );
-    titleOpacity.value = withDelay(400, withTiming(1, { duration: 600 }));
-    statsOpacity.value = withDelay(800, withTiming(1, { duration: 600 }));
-    btnOpacity.value = withDelay(1200, withTiming(1, { duration: 600 }));
+    titleOpacity.value = withDelay(200, withTiming(1, { duration: 300 }));
+    statsOpacity.value = withDelay(350, withTiming(1, { duration: 300 }));
+    btnOpacity.value = withDelay(500, withTiming(1, { duration: 300 }));
   }, []);
 
   const emojiStyle = useAnimatedStyle(() => ({
@@ -46,14 +49,14 @@ export function CompletionStep() {
 
   return (
     <View
-      style={[styles.container, { backgroundColor: theme.backgroundColor }]}>
+      style={[styles.container, { backgroundColor: theme.backgroundColor, paddingTop: insets.top, paddingBottom: insets.bottom + 24 }]}>
       <ProgressBar current={10} total={10} showLabel={false} />
 
       <View style={styles.content}>
-        {/* Celebration Emoji */}
-        <Animated.Text style={[styles.celebration, emojiStyle]}>
-          🎉
-        </Animated.Text>
+        {/* Celebration pictogram */}
+        <Animated.View style={[styles.celebrationWrap, emojiStyle]}>
+          <PartyPopper size={72} color={theme.primaryColor} strokeWidth={1.6} />
+        </Animated.View>
 
         {/* Title */}
         <Animated.View style={[styles.titleBlock, titleStyle]}>
@@ -71,7 +74,9 @@ export function CompletionStep() {
         {/* Stats Summary */}
         <Animated.View style={[styles.statsCard, statsStyle]}>
           <View style={styles.statRow}>
-            <Text style={[styles.statEmoji]}>📋</Text>
+            <View style={styles.statIconWrap}>
+              <ClipboardList size={26} color={theme.primaryColor} strokeWidth={1.8} />
+            </View>
             <View style={styles.statTextWrapper}>
               <Text
                 style={[styles.statLabel, { color: theme.textSecondary }]}>
@@ -87,7 +92,9 @@ export function CompletionStep() {
           <View style={styles.divider} />
 
           <View style={styles.statRow}>
-            <Text style={[styles.statEmoji]}>🎯</Text>
+            <View style={styles.statIconWrap}>
+              <Target size={26} color={theme.primaryColor} strokeWidth={1.8} />
+            </View>
             <View style={styles.statTextWrapper}>
               <Text
                 style={[styles.statLabel, { color: theme.textSecondary }]}>
@@ -103,7 +110,9 @@ export function CompletionStep() {
           <View style={styles.divider} />
 
           <View style={styles.statRow}>
-            <Text style={[styles.statEmoji]}>📝</Text>
+            <View style={styles.statIconWrap}>
+              <FileText size={26} color={theme.primaryColor} strokeWidth={1.8} />
+            </View>
             <View style={styles.statTextWrapper}>
               <Text
                 style={[styles.statLabel, { color: theme.textSecondary }]}>
@@ -144,6 +153,7 @@ const styles = StyleSheet.create({
     fontSize: 80,
     marginBottom: 20,
   },
+  celebrationWrap: { marginBottom: 20, alignItems: 'center' },
   titleBlock: {
     alignItems: 'center',
     marginBottom: 32,
@@ -183,6 +193,9 @@ const styles = StyleSheet.create({
     fontSize: 28,
     marginRight: 14,
   },
+  statIconWrap: {
+    width: 30, alignItems: 'center', marginRight: 14,
+  },
   statTextWrapper: {
     flex: 1,
   },
@@ -201,7 +214,7 @@ const styles = StyleSheet.create({
     marginVertical: 4,
   },
   footer: {
-    paddingBottom: 16,
+    paddingHorizontal: 0,
   },
   button: {
     width: '100%',

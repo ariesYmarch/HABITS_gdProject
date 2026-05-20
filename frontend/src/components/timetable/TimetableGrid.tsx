@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-nati
 import { useAppStore } from '../../store';
 import { themes } from '../../theme/themes';
 import type { TimetableSlotType } from '../../types/user';
+import { Moon, Train, Briefcase, Utensils, Leaf, X } from 'lucide-react-native';
 
 const DAYS = ['월', '화', '수', '목', '금', '토', '일'];
 const START_HOUR = 6;
@@ -12,17 +13,17 @@ const HOURS = Array.from({ length: END_HOUR - START_HOUR }, (_, i) => i + START_
 interface SlotTypeOption {
   type: TimetableSlotType;
   label: string;
-  emoji: string;
+  Icon: React.ComponentType<{ size?: number; color?: string }>;
   color: string;
 }
 
 const SLOT_TYPES: SlotTypeOption[] = [
-  { type: 'sleep', label: '수면', emoji: '😴', color: '#6B7280' },
-  { type: 'commute', label: '이동', emoji: '🚇', color: '#3B82F6' },
-  { type: 'work', label: '업무/학습', emoji: '💼', color: '#EF4444' },
-  { type: 'meal', label: '식사', emoji: '🍽️', color: '#F59E0B' },
-  { type: 'free', label: '자유', emoji: '🌿', color: '#10B981' },
-  { type: null, label: '지우기', emoji: '✕', color: '#D1D5DB' },
+  { type: 'sleep', label: '수면', Icon: Moon, color: '#6B7280' },
+  { type: 'commute', label: '이동', Icon: Train, color: '#3B82F6' },
+  { type: 'work', label: '업무/학습', Icon: Briefcase, color: '#EF4444' },
+  { type: 'meal', label: '식사', Icon: Utensils, color: '#F59E0B' },
+  { type: 'free', label: '자유', Icon: Leaf, color: '#10B981' },
+  { type: null, label: '지우기', Icon: X, color: '#D1D5DB' },
 ];
 
 interface TimetableGridProps {
@@ -62,7 +63,7 @@ export function TimetableGrid({ timetableData, onUpdateSlot }: TimetableGridProp
               ]}
               onPress={() => setSelectedSlotType(option.type)}
               activeOpacity={0.7}>
-              <Text style={styles.selectorEmoji}>{option.emoji}</Text>
+              <option.Icon size={20} color={option.color} />
               <Text
                 style={[
                   styles.selectorLabel,

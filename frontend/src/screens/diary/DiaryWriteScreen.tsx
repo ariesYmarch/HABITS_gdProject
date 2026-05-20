@@ -6,31 +6,22 @@ import {
   ScrollView,
   TouchableOpacity,
   StyleSheet,
-  SafeAreaView,
   KeyboardAvoidingView,
   Platform,
   Alert,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import Slider from '@react-native-community/slider';
+import LinearGradient from 'react-native-linear-gradient';
+import { useFocusEffect } from '@react-navigation/native';
 import { useAppStore } from '../../store';
 import { themes } from '../../theme/themes';
-import { MoodSlider } from '../../components/diary/MoodSlider';
-import { EmotionTagSelector } from '../../components/diary/EmotionTagSelector';
-import { GradientButton } from '../../components/common/GradientButton';
-import type { DiaryEntry } from '../../types/diary';
+import type { DiaryEntry, EmotionType } from '../../types/diary';
+import { EMOTION_EMOJIS, EMOTION_LABELS } from '../../data/emotionKeywords';
+import api from '../../services/api';
+import { schedulePush } from '../../services/sync';
 
-type HabitSatisfaction = 'satisfied' | 'neutral' | 'unsatisfied';
-
-interface SatisfactionOption {
-  type: HabitSatisfaction;
-  emoji: string;
-  label: string;
-}
-
-const SATISFACTION_OPTIONS: SatisfactionOption[] = [
-  { type: 'satisfied', emoji: '😊', label: '만족' },
-  { type: 'neutral', emoji: '😐', label: '보통' },
-  { type: 'unsatisfied', emoji: '😔', label: '불만족' },
-];
+const EMOTION_KEYS: EmotionType[] = ['joy', 'calm', 'proud', 'hope', 'sadness', 'anger', 'anxiety', 'fatigue'];
 
 function formatDateString(date: Date): string {
   const y = date.getFullYear();
@@ -39,80 +30,119 @@ function formatDateString(date: Date): string {
   return `${y}-${m}-${d}`;
 }
 
-function formatDateDisplay(dateStr: string): string {
-  const d = new Date(dateStr + 'T00:00:00');
-  const year = d.getFullYear();
-  const month = d.getMonth() + 1;
-  const day = d.getDate();
+function getTodayString(): string {
+  const d = new Date();
   const weekdays = ['일', '월', '화', '수', '목', '금', '토'];
-  const weekday = weekdays[d.getDay()];
-  return `${year}년 ${month}월 ${day}일 (${weekday})`;
+  return `${d.getMonth() + 1}월 ${d.getDate()}일 (${weekdays[d.getDay()]})`;
 }
 
-export function DiaryWriteScreen() {
+function getMoodText(score: number): string {
+  if (score < 0.2) return '많이 힘들었어요 😢';
+  if (score < 0.4) return '조금 별로였어요';
+  if (score < 0.6) return '괜찮았어요';
+  if (score < 0.8) return '꽤 좋았어요!';
+  return '너무 좋았어요! 🎉';
+}
+
+function getMoodEmoji(score: number): string {
+  if (score < 0.2) return '😢';
+  if (score < 0.4) return '😔';
+  if (score < 0.6) return '😐';
+  if (score < 0.8) return '🙂';
+  return '😊';
+}
+
+export function DiaryWriteScreen({ navigation }: any) {
+  const insets = useSafeAreaInsets();
   const themeId = useAppStore((s) => s.selectedTheme);
   const theme = themes[themeId];
   const addDiaryEntry = useAppStore((s) => s.addDiaryEntry);
+  const updateDiaryEntry = useAppStore((s) => s.updateDiaryEntry);
   const diaryEntries = useAppStore((s) => s.diaryEntries);
+  const userName = useAppStore((s) => s.userName);
 
   const todayStr = formatDateString(new Date());
-
-  // Check if today's diary already exists
   const existingEntry = diaryEntries.find((e) => e.date === todayStr);
 
-  const [moodScore, setMoodScore] = useState(existingEntry?.moodScore ?? 0);
-  const [emotionTags, setEmotionTags] = useState<string[]>(
-    existingEntry?.emotionTags ?? [],
-  );
-  const [textContent, setTextContent] = useState(
-    existingEntry?.textContent ?? '',
-  );
-  const [habitSatisfaction, setHabitSatisfaction] =
-    useState<HabitSatisfaction | null>(
-      existingEntry?.habitSatisfaction ?? null,
-    );
-  const [isSaved, setIsSaved] = useState(!!existingEntry);
+  const [moodScore, setMoodScore] = useState(0.5);
+  const [textContent, setTextContent] = useState('');
+  const [selectedEmotions, setSelectedEmotions] = useState<EmotionType[]>([]);
+  const [isSaved, setIsSaved] = useState(false);
 
-  const handleToggleTag = useCallback((tag: string) => {
-    setEmotionTags((prev) =>
-      prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag],
-    );
-    setIsSaved(false);
-  }, []);
+  // 화면 포커스될 때마다 초기화
+  useFocusEffect(
+    useCallback(() => {
+      setMoodScore(0.5);
+      setTextContent('');
+      setSelectedEmotions([]);
+      setIsSaved(false);
+    }, []),
+  );
 
-  const handleMoodChange = useCallback((value: number) => {
-    setMoodScore(value);
-    setIsSaved(false);
-  }, []);
+  const canSave = true; // 슬라이더는 항상 값이 있으므로 항상 저장 가능
 
   const handleSave = useCallback(() => {
-    if (emotionTags.length === 0) {
-      Alert.alert('감정 선택', '오늘의 감정을 하나 이상 선택해주세요.');
-      return;
-    }
-
+    const text = textContent.trim();
     const entry: Omit<DiaryEntry, 'id'> = {
       date: todayStr,
-      moodScore,
-      emotionTags,
-      textContent: textContent.trim() || undefined,
-      habitSatisfaction: habitSatisfaction ?? undefined,
+      moodScore: moodScore * 2 - 1, // 0~1 → -1~1 범위
+      emotionTags: selectedEmotions,
+      textContent: text || undefined,
     };
 
-    addDiaryEntry(entry);
+    const newId = addDiaryEntry(entry);
     setIsSaved(true);
-    Alert.alert('저장 완료', '오늘의 일기가 저장되었어요! ✨');
+    schedulePush();   // 백엔드로 자동 동기화 (5초 debounce)
+    Alert.alert('저장 완료', '오늘의 일기가 저장되었어요! ✨', [
+      { text: '확인', onPress: () => navigation.goBack() },
+    ]);
+
+    // 감정 분석 결과 저장:
+    // 1) 텍스트 있으면 KoELECTRA + 키워드 분석 시도
+    // 2) 분석 결과가 비거나 텍스트 없어도 → 사용자 버튼 입력(selectedEmotions)으로 fallback
+    const ensureAnalysis = async () => {
+      let scores: Record<string, number> = {};
+
+      if (text) {
+        try {
+          const res = await api.post('/api/v1/emotion/analyze', { text });
+          scores = res.data?.scores || {};
+        } catch {
+          // 호출 실패 → 아래 fallback 사용
+        }
+      }
+
+      // 분석 결과 비었으면 버튼 입력으로 synthetic distribution 생성
+      if (Object.keys(scores).length === 0 && selectedEmotions.length > 0) {
+        const w = 1 / selectedEmotions.length;
+        for (const e of selectedEmotions) scores[e] = w;
+      }
+
+      if (Object.keys(scores).length === 0) return;   // 정말 아무 정보도 없음
+
+      const sorted = Object.entries(scores).sort((a, b) => b[1] - a[1]);
+      updateDiaryEntry(newId, {
+        emotionAnalysis: {
+          mainEmotion: sorted[0][0] as any,
+          confidence: sorted[0][1],
+          distribution: scores as any,
+          analyzedAt: new Date().toISOString(),
+        },
+      });
+      schedulePush();
+    };
+    ensureAnalysis();
   }, [
     todayStr,
     moodScore,
-    emotionTags,
     textContent,
-    habitSatisfaction,
+    selectedEmotions,
     addDiaryEntry,
+    updateDiaryEntry,
   ]);
 
   return (
-    <SafeAreaView
+    <View
       style={[styles.safeArea, { backgroundColor: theme.backgroundColor }]}>
       <KeyboardAvoidingView
         style={styles.flex}
@@ -120,237 +150,169 @@ export function DiaryWriteScreen() {
         keyboardVerticalOffset={90}>
         <ScrollView
           style={styles.flex}
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[styles.scrollContent, { paddingBottom: insets.bottom + 30 }]}
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled">
           {/* Header */}
-          <View style={styles.header}>
-            <Text style={[styles.title, { color: theme.textPrimary }]}>
-              오늘의 일기
-            </Text>
-            <Text style={[styles.dateLabel, { color: theme.textSecondary }]}>
-              {formatDateDisplay(todayStr)}
-            </Text>
+          <View style={styles.headerRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={[styles.dateTitle, { color: theme.textPrimary }]}>
+                {getTodayString()}
+              </Text>
+              <Text
+                style={[styles.subtitle, { color: theme.textSecondary }]}>
+                오늘 하루는 어땠나요?
+              </Text>
+            </View>
           </View>
 
           {/* Section 1: Mood Score */}
-          <View
-            style={[
-              styles.section,
-              { backgroundColor: theme.cardBackgroundColor },
-            ]}>
-            <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>
-              오늘의 기분
-            </Text>
+          <View style={styles.card}>
+            <Text style={styles.moodEmoji}>{getMoodEmoji(moodScore)}</Text>
             <Text
-              style={[styles.sectionDesc, { color: theme.textSecondary }]}>
-              슬라이더를 움직여 오늘의 기분을 표현해보세요
+              style={[styles.moodText, { color: theme.primaryColor }]}>
+              {getMoodText(moodScore)}
             </Text>
-            <MoodSlider value={moodScore} onValueChange={handleMoodChange} />
-          </View>
-
-          {/* Section 2: Emotion Tags */}
-          <View
-            style={[
-              styles.section,
-              { backgroundColor: theme.cardBackgroundColor },
-            ]}>
-            <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>
-              감정 태그
-            </Text>
-            <EmotionTagSelector
-              selectedTags={emotionTags}
-              onToggleTag={handleToggleTag}
-            />
-          </View>
-
-          {/* Section 3: Text Content */}
-          <View
-            style={[
-              styles.section,
-              { backgroundColor: theme.cardBackgroundColor },
-            ]}>
-            <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>
-              오늘 하루 메모
-            </Text>
-            <Text
-              style={[styles.sectionDesc, { color: theme.textSecondary }]}>
-              자유롭게 오늘의 생각을 적어보세요
-            </Text>
-            <TextInput
-              style={[
-                styles.textInput,
-                {
-                  color: theme.textPrimary,
-                  borderColor: '#E5E7EB',
-                },
-              ]}
-              placeholder="오늘 하루는 어땠나요?"
-              placeholderTextColor={theme.textSecondary + '80'}
-              multiline
-              numberOfLines={5}
-              textAlignVertical="top"
-              value={textContent}
-              onChangeText={(text) => {
-                setTextContent(text);
-                setIsSaved(false);
-              }}
-            />
-            <Text style={[styles.charCount, { color: theme.textSecondary }]}>
-              {textContent.length}자
-            </Text>
-          </View>
-
-          {/* Section 4: Habit Satisfaction */}
-          <View
-            style={[
-              styles.section,
-              { backgroundColor: theme.cardBackgroundColor },
-            ]}>
-            <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>
-              습관 만족도
-            </Text>
-            <Text
-              style={[styles.sectionDesc, { color: theme.textSecondary }]}>
-              오늘 습관 실천에 대해 어떻게 느끼시나요?
-            </Text>
-            <View style={styles.satisfactionRow}>
-              {SATISFACTION_OPTIONS.map((option) => {
-                const isSelected = habitSatisfaction === option.type;
+            <View style={styles.sliderRow}>
+              <Text style={styles.sliderEmoji}>😢</Text>
+              <Slider
+                style={styles.slider}
+                minimumValue={0}
+                maximumValue={1}
+                value={moodScore}
+                onValueChange={(v) => {
+                  setMoodScore(v);
+                  setIsSaved(false);
+                }}
+                minimumTrackTintColor={theme.primaryColor}
+                maximumTrackTintColor="#E5E7EB"
+                thumbTintColor={theme.primaryColor}
+              />
+              <Text style={styles.sliderEmoji}>😊</Text>
+            </View>
+            <View style={styles.emotionGrid}>
+              {EMOTION_KEYS.map((key) => {
+                const selected = selectedEmotions.includes(key);
                 return (
                   <TouchableOpacity
-                    key={option.type}
-                    style={[
-                      styles.satisfactionButton,
-                      isSelected
-                        ? {
-                            backgroundColor: theme.primaryColor + '15',
-                            borderColor: theme.primaryColor,
-                          }
-                        : { borderColor: '#E5E7EB' },
-                    ]}
+                    key={key}
+                    style={[styles.emotionChip, { backgroundColor: selected ? theme.primaryColor : theme.primaryColor + '14' }]}
                     onPress={() => {
-                      setHabitSatisfaction(option.type);
+                      setSelectedEmotions((prev) =>
+                        prev.includes(key) ? prev.filter((e) => e !== key) : [...prev, key],
+                      );
                       setIsSaved(false);
                     }}
                     activeOpacity={0.7}>
-                    <Text style={styles.satisfactionEmoji}>
-                      {option.emoji}
-                    </Text>
-                    <Text
-                      style={[
-                        styles.satisfactionLabel,
-                        {
-                          color: isSelected
-                            ? theme.primaryColor
-                            : theme.textSecondary,
-                          fontWeight: isSelected ? '700' : '500',
-                        },
-                      ]}>
-                      {option.label}
-                    </Text>
+                    <Text style={styles.emotionChipEmoji}>{EMOTION_EMOJIS[key]}</Text>
+                    <Text style={[styles.emotionChipLabel, { color: selected ? '#FFF' : theme.textPrimary }]}>{EMOTION_LABELS[key]}</Text>
                   </TouchableOpacity>
                 );
               })}
             </View>
           </View>
 
-          {/* Save Button */}
-          <View style={styles.footer}>
-            <GradientButton
-              title={isSaved ? '저장됨 ✓' : '일기 저장하기'}
-              onPress={handleSave}
-              disabled={isSaved}
-              style={styles.saveButton}
-            />
+          {/* Section 2: Diary Text */}
+          <View style={styles.card}>
+            <View style={styles.sectionHeader}>
+              <Text style={[styles.sectionTitle, { color: theme.textPrimary }]}>
+                직접 일기 쓰기
+              </Text>
+            </View>
+            <View
+              style={[
+                styles.textInputContainer,
+                { backgroundColor: theme.primaryColor + '0D' },
+              ]}>
+              <TextInput
+                style={[styles.textInput, { color: theme.textPrimary }]}
+                placeholder={`일기를 쓰고 쓰지 않고는 ${userName || '회원'}님의 선택이에요 :)`}
+                placeholderTextColor={'#9CA3AF80'}
+                multiline
+                numberOfLines={5}
+                textAlignVertical="top"
+                value={textContent}
+                onChangeText={(text) => {
+                  setTextContent(text);
+                  setIsSaved(false);
+                }}
+              />
+            </View>
           </View>
+
+          {/* Save Button - 앱 전반 주 액션 버튼과 동일한 그라데이션 */}
+          <TouchableOpacity
+            onPress={handleSave}
+            disabled={!canSave || isSaved}
+            activeOpacity={0.85}
+            style={styles.saveButton}>
+            <LinearGradient
+              colors={isSaved
+                ? ['#9CA3AF', '#9CA3AF']
+                : canSave
+                  ? [theme.gradientColors[1], theme.gradientColors[2]]
+                  : ['#C8CDD5', '#C8CDD5']}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 0 }}
+              style={StyleSheet.absoluteFill}
+            />
+            <Text style={styles.saveButtonText}>
+              {isSaved ? '저장됨 ✓' : '저장하기'}
+            </Text>
+          </TouchableOpacity>
+
         </ScrollView>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-  },
-  flex: {
-    flex: 1,
-  },
-  scrollContent: {
-    paddingHorizontal: 20,
-    paddingBottom: 40,
-  },
-  header: {
-    paddingTop: 16,
-    paddingBottom: 20,
-  },
-  title: {
-    fontSize: 24,
-    fontWeight: '700',
-    marginBottom: 4,
-  },
-  dateLabel: {
-    fontSize: 14,
-    fontWeight: '500',
-  },
-  section: {
-    borderRadius: 16,
+  safeArea: { flex: 1 },
+  flex: { flex: 1 },
+  scrollContent: { padding: 20, paddingBottom: 40, gap: 20 },
+  headerRow: { flexDirection: 'row', alignItems: 'flex-start' },
+  dateTitle: { fontSize: 22, fontWeight: '700' },
+  subtitle: { fontSize: 15, marginTop: 4 },
+  card: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
     padding: 20,
-    marginBottom: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.04,
-    shadowRadius: 6,
-    elevation: 2,
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    elevation: 3,
   },
-  sectionTitle: {
-    fontSize: 17,
-    fontWeight: '700',
-    marginBottom: 4,
-  },
-  sectionDesc: {
-    fontSize: 13,
-    lineHeight: 18,
-    marginBottom: 16,
-  },
-  textInput: {
-    fontSize: 15,
-    lineHeight: 22,
-    borderWidth: 1,
-    borderRadius: 12,
-    padding: 14,
-    minHeight: 120,
-  },
-  charCount: {
-    fontSize: 12,
-    textAlign: 'right',
-    marginTop: 6,
-  },
-  satisfactionRow: {
-    flexDirection: 'row',
-    gap: 12,
-    marginTop: 4,
-  },
+  moodEmoji: { fontSize: 60, textAlign: 'center', marginBottom: 8 },
+  moodText: { fontSize: 17, fontWeight: '600', textAlign: 'center', marginBottom: 16 },
+  sliderRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  sliderEmoji: { fontSize: 20 },
+  slider: { flex: 1 },
+  emotionGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 16 },
+  emotionChip: { width: '22.5%' as any, alignItems: 'center', paddingVertical: 10, borderRadius: 12, gap: 4, flexGrow: 1, flexBasis: '22%' as any },
+  emotionChipEmoji: { fontSize: 20 },
+  emotionChipLabel: { fontSize: 11, fontWeight: '500' },
+  sectionHeader: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 12 },
+  sectionTitle: { fontSize: 17, fontWeight: '800' },
+  sectionCaption2: { fontSize: 12, marginTop: 4, marginBottom: 12 },
+  textInputContainer: { borderRadius: 12, overflow: 'hidden' },
+  textInput: { fontSize: 15, padding: 12, minHeight: 100, lineHeight: 22 },
+  satisfactionRow: { flexDirection: 'row', gap: 10 },
   satisfactionButton: {
     flex: 1,
     alignItems: 'center',
-    paddingVertical: 16,
+    paddingVertical: 14,
     borderRadius: 14,
-    borderWidth: 1.5,
     gap: 6,
   },
-  satisfactionEmoji: {
-    fontSize: 28,
-  },
-  satisfactionLabel: {
-    fontSize: 14,
-  },
-  footer: {
-    paddingTop: 8,
-    paddingBottom: 16,
-  },
+  satisfactionEmoji: { fontSize: 26 },
+  satisfactionLabel: { fontSize: 13 },
   saveButton: {
-    width: '100%',
+    borderRadius: 16,
+    paddingVertical: 16,
+    alignItems: 'center',
+    overflow: 'hidden' as const,
   },
+  saveButtonText: { color: '#FFFFFF', fontSize: 17, fontWeight: '600' },
 });

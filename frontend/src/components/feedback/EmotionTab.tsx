@@ -134,19 +134,10 @@ export function EmotionTab({ startDate, endDate }: EmotionTabProps) {
       }))
       .sort((a, b) => b.count - a.count);
 
-    // Satisfaction distribution
-    const satCount = { satisfied: 0, neutral: 0, unsatisfied: 0 };
-    entries.forEach((e) => {
-      if (e.habitSatisfaction) {
-        satCount[e.habitSatisfaction]++;
-      }
-    });
-
     return {
       avgMood,
       moodTrend,
       emotionStats,
-      satCount,
       entryCount: entries.length,
       totalDays: dates.length,
     };
@@ -260,53 +251,6 @@ export function EmotionTab({ startDate, endDate }: EmotionTabProps) {
               </View>
             );
           })}
-        </View>
-      )}
-
-      {/* Habit Satisfaction */}
-      {(stats.satCount.satisfied > 0 ||
-        stats.satCount.neutral > 0 ||
-        stats.satCount.unsatisfied > 0) && (
-        <View
-          style={[
-            styles.card,
-            { backgroundColor: theme.cardBackgroundColor },
-          ]}>
-          <Text style={[styles.cardTitle, { color: theme.textPrimary }]}>
-            습관 만족도 분포
-          </Text>
-          <View style={styles.satRow}>
-            <View style={styles.satItem}>
-              <Text style={styles.satEmoji}>😊</Text>
-              <Text
-                style={[styles.satValue, { color: '#10B981' }]}>
-                {stats.satCount.satisfied}
-              </Text>
-              <Text style={[styles.satLabel, { color: theme.textSecondary }]}>
-                만족
-              </Text>
-            </View>
-            <View style={styles.satItem}>
-              <Text style={styles.satEmoji}>😐</Text>
-              <Text
-                style={[styles.satValue, { color: '#F59E0B' }]}>
-                {stats.satCount.neutral}
-              </Text>
-              <Text style={[styles.satLabel, { color: theme.textSecondary }]}>
-                보통
-              </Text>
-            </View>
-            <View style={styles.satItem}>
-              <Text style={styles.satEmoji}>😔</Text>
-              <Text
-                style={[styles.satValue, { color: '#EF4444' }]}>
-                {stats.satCount.unsatisfied}
-              </Text>
-              <Text style={[styles.satLabel, { color: theme.textSecondary }]}>
-                불만족
-              </Text>
-            </View>
-          </View>
         </View>
       )}
 
