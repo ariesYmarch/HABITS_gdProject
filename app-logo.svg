@@ -1,0 +1,46 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="440" height="360" viewBox="0 0 440 360">
+  <defs>
+    <linearGradient id="topGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#EFF8D1"/>
+      <stop offset="100%" stop-color="#EFF8D1" stop-opacity="0"/>
+    </linearGradient>
+    <linearGradient id="frontGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#DBEFD8"/>
+      <stop offset="50%" stop-color="#ACD9E9"/>
+      <stop offset="100%" stop-color="#98D2F0"/>
+    </linearGradient>
+    <linearGradient id="rightGrad" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#9CDBEE"/>
+      <stop offset="50%" stop-color="#6BE1EE"/>
+      <stop offset="100%" stop-color="#97E7EC"/>
+    </linearGradient>
+    <linearGradient id="textGrad" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#EFF8D1"/>
+      <stop offset="50%" stop-color="#ACD9E9"/>
+      <stop offset="100%" stop-color="#6BE1EE"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Cube: centered around x=220 -->
+  <!-- Top face - skewed parallelogram -->
+  <rect x="130" y="18" width="160" height="80" rx="18"
+        fill="url(#topGrad)" opacity="0.3"
+        transform="skewX(-10) translate(18, 0)"/>
+
+  <!-- Front face -->
+  <rect x="108" y="72" width="152" height="144" rx="20"
+        fill="url(#frontGrad)" opacity="0.35"/>
+
+  <!-- Right face -->
+  <rect x="228" y="72" width="116" height="144" rx="20"
+        fill="url(#rightGrad)" opacity="0.6"/>
+
+  <!-- HABITS text centered below/over cube -->
+  <text x="220" y="250"
+        font-family="'Arial Black', 'Helvetica Neue', Arial, sans-serif"
+        font-weight="900"
+        font-size="76"
+        letter-spacing="6"
+        text-anchor="middle"
+        fill="url(#textGrad)">HABITS</text>
+</svg>
