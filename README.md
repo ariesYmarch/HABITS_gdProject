@@ -8,14 +8,16 @@
 
 [![Stack](https://img.shields.io/badge/Tech-React%20Native-blue)]() [![Stack](https://img.shields.io/badge/Backend-FastAPI-green)]() [![Stack](https://img.shields.io/badge/AI-KoELECTRA%20%26%20LLM-orange)]() [![Status](https://img.shields.io/badge/Status-Architecture%20Designed-blueviolet)]()
 
-## 🔧 Installation & Run
+## 🎥 Demo video
+
+아래 링크에서 간략한 데모 영상을 확인해보실 수 있습니다. ⬇️
+https://youtu.be/ee_aI8e--zQ
+
+## 🔧 Currnet Status
 
 본 프로젝트는 별도의 환경 변수(.env) 설정 없이 바로 실행 가능하도록 구성되었습니다.
 
-하지만 본 프로젝트는 현재 **기획 및 아키텍처 설계** 단계까지 완료된 상태입니다.
-
-현재 리포지토리에 포함된 코드는 실제 작동하는 애플리케이션이 아닌, **시스템 설계와 데이터 구조를 검증하기 위한 스켈레톤 코드**로, 서비스의 실행이 어렵습니다.
-
+하지만 본 프로젝트는 현재 **배포 전** 단계까지 완료된 상태입니다.
 
 ### 1. Backend (Server)
 ```bash
