@@ -78,7 +78,7 @@ graph TD
 | **Backend** | <img src="https://img.shields.io/badge/FastAPI-009688?style=flat-square&logo=fastapi&logoColor=white" /> | 비동기 처리에 최적화된 고성능 Python 서버 |
 | **Database** | <img src="https://img.shields.io/badge/PostgreSQL-336791?style=flat-square&logo=postgresql&logoColor=white" /> | 사용자 정보 및 습관 로그 관리를 위한 RDBMS |
 | **AI (NLP)** | **Hugging Face (KoELECTRA)** | 한국어 감정 분석 (Fine-tuned Model) |
-| **AI (Gen)** | **OpenAI API (GPT-4o)** | 상황 인식 기반 자연어 피드백 생성 |
+| **AI (Gen)** | **Gemini Flash 2.5** | 상황 인식 기반 자연어 피드백 생성 |
 | **AI (Rec)** | **Recombee** | 아이템 기반 협업 필터링 및 하이브리드 추천 |
 | **Infra** | **Firebase (FCM)** | 푸시 알림 및 사용자 인증 |
 
