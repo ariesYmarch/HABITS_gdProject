@@ -10,7 +10,8 @@
 
 ## 🎥 Demo video
 
-아래 링크에서 간략한 데모 영상을 확인해보실 수 있습니다. ⬇️
+아래 링크에서 간략한 데모 영상을 확인해보실 수 있습니다.
+
 https://youtu.be/ee_aI8e--zQ
 
 ## 🔧 Currnet Status
