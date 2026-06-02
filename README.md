@@ -196,12 +196,6 @@ HABITS_gdProject
     - [x] Recombee 협업 필터링 연동
     - [x] APScheduler 자동 리포트(일요일 22시 KST / 월말 22시)
     - [x] Local-First 동기화 (5초 debounce push, LWW conflict resolution)
-- [ ] **Phase 3 — 고도화 / V2**
-    - [ ] OAuth (카카오·구글) 로그인
-    - [ ] FCM 푸시 알림 인프라
-    - [ ] KoELECTRA self-hosted 컨테이너 이전 (외부 전송 0)
-    - [ ] JWT RS256 전환 + refresh token server-side blacklist
-    - [ ] Oracle Cloud / AWS 배포 + Caddy TLS
 
 ---
 
