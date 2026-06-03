@@ -39,7 +39,7 @@
 | **ORM** | SQLAlchemy 2.0 + Alembic | |
 | **Auth** | JWT (HS256, access 15분 + refresh 7일) + bcrypt cost 12 | refresh race-lock 적용 |
 | **AI #1** | **KoELECTRA** (`monologg/koelectra-base-v3-discriminator`, HF Inference API) | 8-class 감정 분류 (AI Hub 감성 대화 말뭉치 파인튜닝) |
-| **AI #2** | **Gemini 2.5 Flash** | 시계열 메타 인사이트 + 추천 이유 개인화 + 일정 기반 time_slot 배정 |
+| **AI #2** | **Gemini 2.5 Flash** | 시계열 메타 인사이트, 추천 이유 개인화, 일정 기반 time_slot 배정 |
 | **Mail** | Resend API | 비밀번호 재설정 |
 
 ---
@@ -77,26 +77,26 @@ graph TD
 
 ## 🧠 Core Logic
 
-### 1. 감정 분석 (KoELECTRA + Korean Keyword Dict)
-한국어 ELECTRA 베이스를 AI Hub 감성 대화 말뭉치(30+ 세부 라벨)를 우리 8 클래스(joy/calm/proud/hope/sadness/anger/anxiety/fatigue)로 통합 후 weighted CrossEntropy로 클래스 불균형 보정해 파인튜닝. 모델 confidence가 모호한 케이스는 8 라벨 × 250+ 표현의 **한국어 키워드 사전**(구어체·신조어 포함)으로 보완 신호를 만들어 **모델 70% + 키워드 30%** 가중 평균.
+### 1. 감정 분석 (KoELECTRA)
+한국어 ELECTRA 베이스를 AI Hub 감성 대화 말뭉치(30+ 세부 라벨)를 우리 8 클래스(joy/calm/proud/hope/sadness/anger/anxiety/fatigue)로 통합 후 weighted CrossEntropy로 클래스 불균형 보정해 파인튜닝함. 모델 confidence가 모호한 케이스는 8 라벨 × 250+@ 표현의 **한국어 키워드 사전**(구어체·신조어 포함)으로 보완 신호를 만들어 가중 평균을 **모델 70% + 키워드 30%**로 설정.
 
-### 2. AI 리포트 — 결정적 매트릭스 + Gemini 하이브리드
-LLM 환각 위험을 피하기 위해 **결정적 진단을 먼저**, **풍부화만 LLM에** 위임. 이행률 5구간(very_low~very_high) × 감정 4구간(positive/negative/mixed/no_data) = **20셀 매트릭스**가 라벨·줄글·키워드를 결정. Gemini는 (a) 최근 3+ 리포트를 보고 **시계열 패턴 인사이트** 1문단 생성, (b) **추천 행동 이유**를 사용자 데이터 인용해 개인화. 사용자가 "아쉬워요" 평가 + 사유를 남기면 **다음 리포트 Gemini 호출의 satisfaction hint**에 직접 인용되어 폐쇄 루프 완성.
+### 2. AI 리포트: 결정 매트릭스 & Gemini 하이브리드
+LLM 환각 위험을 피하기 위해 **정적 진단을 먼저**진행하고, **문장 풍부화만 LLM에** 위임함. 이행률 5구간(very_low~very_high) × 감정 4구간(positive/negative/mixed/no_data), 총 **20개의 셀 매트릭스**가 피드백 리포트의 라벨·줄글·키워드를 결정함. Gemini는 먼저 최근 생성된 3개 이상의 리포트를 보고 그간의 경향성을 반영하는 **시계열 패턴 인사이트** 1문단 생성하고, 이후 **추천 행동 이유**를 사용자 데이터 인용해 개인화함. 사용자가 피드백 리포트의 만족도에 아쉽다는 피드백과 그 사유를 남기면 **다음 리포트 Gemini 호출 시 힌트**로 인용되어 개선 루프를 형성함.
 
 ### 3. Mood × Habit Correlation Insights
-최근 60일 일기의 `mood_score`를 33/66 분위로 나눠 "기분 좋은 날" vs "기분 무거운 날" 그룹을 만들고, 활성 습관별 이행률 차이가 **25%p 이상**인 케이스만 인사이트 후보로 추출. 차이 방향에 따라 `high_better`(컨디션과 함께 가는 습관) / `low_better`(어려운 시기 회복 루틴)로 해석해 리포트 본문에 1~2문장 자연어로 삽입. 데이터 부족(<10일 일기 or 그룹당 <3일) 시 자동 스킵.
+최근 60일 일기의 `mood_score`를 33/66 분위로 나눠 "기분 좋은 날" vs "힘든 날" 그룹을 만들고, 활성 습관별 이행률 차이가 **25%p 이상**인 케이스만 인사이트 후보로 추출함. 차이 방향에 따라 `high_better`(컨디션과 함께 가는 습관) / `low_better`(어려운 시기 회복 루틴)로 해석해 리포트 본문에 1~2문장 자연어로 삽입함.
 
 ### 4. Context-Aware Habit Recommendation (Onboarding + Report)
-온보딩에서는 사용자가 선택한 **해시태그**와 입력한 **일주일 일정(7×24 그리드)**을 결합해 Gemini가 후보 템플릿 중 N개를 골라 각 습관에 최적 `time_slot`(morning/commute/lunch/afternoon/evening/bedtime/anytime)을 자동 배정. 7×24 그리드는 요일별 자유 시간 범위로 압축 전송, JSON 응답 강제(`responseMimeType`)로 파싱 안정성 확보. 리포트의 "휴식 습관 추가" 추천은 mindset 카테고리 + 휴식/여가 컨텍스트 템플릿만 필터링해 노출.
+온보딩에서는 사용자가 선택한 **해시태그**와 입력한 **일주일 일정(7×24 그리드)**을 결합해 Gemini가 후보 템플릿 중 N개를 골라 각 습관에 최적 `time_slot`(morning/commute/lunch/afternoon/evening/bedtime/anytime)을 자동 배정함. 7×24 그리드는 요일별 자유 시간 범위로 압축 전송하고, JSON 응답 강제(`responseMimeType`)로 파싱 안정성을 확보함. 리포트의 "휴식 습관 추가" 추천은 mindset 카테고리 + 휴식/여가 컨텍스트 템플릿만 필터링해 노출함.
 
 ### 5. Local-First Sync with LWW
-오프라인에서도 즉시 저장되도록 zustand+AsyncStorage가 1차 저장소. 모든 sync target에 `client_id` UUID + `updated_at` + `deleted_at`(tombstone) 필드. 충돌은 **Last-Write-Wins** 알고리즘으로 결정적 해결. 5초 debounce push + 포그라운드 진입 시 `since=lastSyncedAt` pull.
+오프라인에서도 즉시 저장되도록 zustand와 AsyncStorage를 1차 저장소로 활용함. 모든 sync target에 `client_id` UUID + `updated_at` + `deleted_at`(tombstone) 필드를 배정하며, 충돌은 **Last-Write-Wins** 알고리즘으로 대응함.
 
 ### 6. Security
 - **JWT**: HS256 + payload `type` 필드(access/refresh/reset)로 토큰 위조 방어, refresh 동시 401 처리는 single shared promise로 race lock
 - **bcrypt**: cost 12 (256ms/hash)
-- **Supabase RLS**: 모든 `public.*` 테이블 RLS 활성화 + `REVOKE ALL ... FROM anon, authenticated, public` + DEFAULT PRIVILEGES 회수로 PostgREST 노출 0
-- **백엔드 우회**: `postgres` superuser 직결(BYPASSRLS=true)로 RLS 영향 없음
+- **Supabase RLS**: 모든 `public.*` 테이블 RLS 활성화 & `REVOKE ALL ... FROM anon, authenticated, public` + DEFAULT PRIVILEGES 회수로 PostgREST 노출 방지
+- **백엔드 우회**: `postgres` superuser 직결로 RLS 영향 없음
 
 ---
 
@@ -200,18 +200,14 @@ HABITS_gdProject
 
 ## 📑 Documents
 
-- [💡 Ideation & Brainstorming](./docs/Ideation.md) — 초기 아이디어와 문제 정의
-- [📝 Project Scenario & Specs](./docs/Project_Scenario.md) — 페르소나 시나리오 + 기능 명세
-- [⚖️ Team Ground Rules](./docs/GroundRules.md) — 협업 가이드라인
-- [🧪 Integration Test Guide](./docs/INTEGRATION_TEST_GUIDE.md) — E2E 검증 시나리오
-- [📋 Work Log](./docs/WORK_LOG.md) — 개발 일지
+- [💡 Ideation & Brainstorming](./docs/Ideation.md)
+- [📝 Project Scenario & Specs](./docs/Project_Scenario.md)
+- [⚖️ Team Ground Rules](./docs/GroundRules.md)
 
 ---
 
 ## 👥 Team
 
 **Team 12 HABITS** — 캡스톤디자인 그로쓰
-- 양설아 (Team Leader, 2276186)
-- Deng Yuanrong (2271003)
 </content>
 </invoke>
