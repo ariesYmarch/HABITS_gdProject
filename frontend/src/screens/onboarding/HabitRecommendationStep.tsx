@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useEffect } from 'react';
 import {
   View,
   Text,
@@ -27,32 +27,91 @@ import {
 } from '../../data/habitTemplates';
 import type {
   HabitTemplateItem,
+  TimeSlot,
 } from '../../types/habit';
+import {
+  getPersonalizedRecommendations,
+  type PersonalizedRecommendation,
+} from '../../services/habitRecommendation';
+import { ActivityIndicator } from 'react-native';
+import { Sunrise, Train, Utensils, Sun, Sunset, Moon } from 'lucide-react-native';
+
+type _LucideIcon = React.ComponentType<{ size?: number; color?: string; strokeWidth?: number }>;
 
 type Props = NativeStackScreenProps<
   OnboardingStackParamList,
   'HabitRecommendation'
 >;
 
-// Swift-matching time period categories
-const TIME_PERIODS = [
-  { id: 'morning', emoji: '\uD83C\uDF05', label: '아침' },
-  { id: 'commute', emoji: '\uD83D\uDE89', label: '통근' },
-  { id: 'lunch', emoji: '\uD83C\uDF7D\uFE0F', label: '점심' },
-  { id: 'afternoon', emoji: '\u2600\uFE0F', label: '오후' },
-  { id: 'evening', emoji: '\uD83C\uDF06', label: '저녁' },
-  { id: 'bedtime', emoji: '\uD83C\uDF19', label: '취침 전' },
+// 시간대별 픽토그램 (lucide-react-native)
+const TIME_PERIODS: { id: string; Icon: _LucideIcon; label: string }[] = [
+  { id: 'morning', Icon: Sunrise, label: '아침' },
+  { id: 'commute', Icon: Train, label: '통근' },
+  { id: 'lunch', Icon: Utensils, label: '점심' },
+  { id: 'afternoon', Icon: Sun, label: '오후' },
+  { id: 'evening', Icon: Sunset, label: '저녁' },
+  { id: 'bedtime', Icon: Moon, label: '취침 전' },
 ];
 
-// Map time periods to habit template categories
-const TIME_TO_CATEGORIES: Record<string, string[]> = {
-  morning: ['morningRitual', 'health'],
-  commute: ['commute', 'learning'],
-  lunch: ['relationship', 'mindset'],
-  afternoon: ['productivity', 'learning'],
-  evening: ['evening', 'relationship'],
-  bedtime: ['evening', 'mindset', 'health'],
+// 사용자가 입력한 일정 블록 타입(TimetableSlotType) → 어울리는 습관의 category/contexts
+const SLOT_TO_HABIT: Record<string, { categories: string[]; contexts: string[] }> = {
+  sleep:   { categories: ['evening'],
+             contexts: ['beforeBed', 'evening'] },
+  commute: { categories: ['commute'],
+             contexts: ['commute', 'beforeOut'] },
+  work:    { categories: ['productivity', 'learning'],
+             contexts: ['work', 'study'] },
+  meal:    { categories: [],
+             contexts: ['meal', 'lunch'] },
+  free:    { categories: ['mindset', 'health', 'relationship', 'morningRitual'],
+             contexts: ['leisure', 'hobby', 'rest', 'morning', 'evening', 'exercise'] },
 };
+
+/** timetableData 7x24 그리드에서 슬롯별 블록 수 집계 */
+function countBlocksBySlot(grid: any[][]): Record<string, number> {
+  const counts: Record<string, number> = { sleep: 0, commute: 0, work: 0, meal: 0, free: 0 };
+  if (!Array.isArray(grid)) return counts;
+  for (const day of grid) {
+    if (!Array.isArray(day)) continue;
+    for (const cell of day) {
+      if (cell && typeof cell === 'string' && cell in counts) counts[cell]++;
+    }
+  }
+  return counts;
+}
+
+/** 슬롯 블록 수 + 해시태그 겹침으로 후보 사전 정렬.
+ *  - 슬롯 가중치: 블록 수 많은 순으로 4·3·2·1·0점 (블록 0개는 가중 0)
+ *  - 후보의 category/contexts가 슬롯 매핑과 겹치는 만큼 점수 합산
+ *  - 해시태그 겹침은 매칭 1개당 +2점
+ */
+function rankCandidatesByTimetable(
+  templates: HabitTemplateItem[],
+  slotCounts: Record<string, number>,
+  selectedHashtags: string[],
+): HabitTemplateItem[] {
+  const sortedSlots = Object.entries(slotCounts).sort((a, b) => b[1] - a[1]);
+  const slotWeight: Record<string, number> = {};
+  sortedSlots.forEach(([slot, count], idx) => {
+    slotWeight[slot] = count === 0 ? 0 : Math.max(0, 4 - idx);
+  });
+  const userTagSet = new Set(selectedHashtags);
+  const scored = templates.map((t) => {
+    let slotScore = 0;
+    for (const slot of Object.keys(slotWeight)) {
+      const mapping = SLOT_TO_HABIT[slot];
+      if (!mapping || slotWeight[slot] === 0) continue;
+      const catMatch = mapping.categories.includes(t.category);
+      const ctxMatch = mapping.contexts.some((ctx) =>
+        (t.contexts || []).includes(ctx as any),
+      );
+      if (catMatch || ctxMatch) slotScore += slotWeight[slot];
+    }
+    const tagOverlap = (t.strengthenTags || []).filter((tag) => userTagSet.has(tag)).length;
+    return { t, score: slotScore + tagOverlap * 2 };
+  });
+  return scored.sort((a, b) => b.score - a.score).map((s) => s.t);
+}
 
 export function HabitRecommendationStep({ navigation }: Props) {
   const themeId = useAppStore((s) => s.selectedTheme);
@@ -60,28 +119,96 @@ export function HabitRecommendationStep({ navigation }: Props) {
   const insets = useSafeAreaInsets();
   const userName = useAppStore((s) => s.userName);
   const selectedHashtags = useAppStore((s) => s.selectedHashtags);
+  const occupation = useAppStore((s) => s.occupation);
+  const schedule = useAppStore((s) => s.schedule);
+  const timetableData = useAppStore((s) => s.timetableData);
   const addHabit = useAppStore((s) => s.addHabit);
   const completeOnboarding = useAppStore((s) => s.completeOnboarding);
 
-  const [activeTimePeriod, setActiveTimePeriod] = useState('morning');
+  const [activeTimePeriod, setActiveTimePeriod] = useState<TimeSlot>('morning');
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [showCompletion, setShowCompletion] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [geminiRecs, setGeminiRecs] = useState<PersonalizedRecommendation[]>([]);
 
   // Completion animation values
   const emojiScale = useSharedValue(0);
   const textOpacity = useSharedValue(0);
 
-  // Get recommendations
-  const recommended = useMemo(() => {
+  // 후보 풀: 해시태그 1차 선별 → 일정 블록 수 + 태그 겹침으로 사전 정렬
+  const candidatePool = useMemo(() => {
     const userTags = new Set(selectedHashtags);
-    return recommendTemplates(userTags, 50);
-  }, [selectedHashtags]);
+    // 1차: 해시태그 매칭으로 50개 추림
+    const tagFiltered = recommendTemplates(userTags, 50);
+    // 2차: 사용자가 시간표에 입력한 슬롯별 블록 수 + 해시태그 겹침으로 정렬
+    const slotCounts = countBlocksBySlot(timetableData);
+    const ranked = rankCandidatesByTimetable(tagFiltered, slotCounts, selectedHashtags);
+    return ranked.slice(0, 30);
+  }, [selectedHashtags, timetableData]);
 
-  // Filter by time period
-  const filteredTemplates = useMemo(() => {
-    const cats = TIME_TO_CATEGORIES[activeTimePeriod] || [];
-    return recommended.filter((t) => cats.includes(t.category));
-  }, [recommended, activeTimePeriod]);
+  // 마운트 시 Gemini 호출 — 일정 기반 추천 + time_slot 자동 매핑
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      setLoading(true);
+      const candidates = candidatePool.map((t) => ({
+        id: t.id,
+        title: t.title,
+        emoji: t.emoji,
+        category: t.category,
+        estimated_minutes: t.estimatedMinutes,
+        strengthen_tags: t.strengthenTags,
+      }));
+      const recs = await getPersonalizedRecommendations(
+        {
+          wake_up_time: schedule.wakeUpTime,
+          bed_time: schedule.bedTime,
+          lunch_start_time: schedule.lunchStartTime,
+          lunch_end_time: schedule.lunchEndTime,
+          has_commute: schedule.hasCommute,
+          commute_start_time: schedule.commuteStartTime,
+          commute_end_time: schedule.commuteEndTime,
+          work_start_time: schedule.workStartTime,
+          work_end_time: schedule.workEndTime,
+          // 사용자가 직접 채운 7×24 일주일 그리드
+          weekly_timetable: timetableData,
+        },
+        occupation,
+        selectedHashtags,
+        candidates,
+        10,
+      );
+      if (!cancelled) {
+        // Gemini 실패해도 candidatePool로 fallback
+        if (recs.length > 0) {
+          setGeminiRecs(recs);
+        } else {
+          setGeminiRecs(
+            candidatePool.slice(0, 8).map((t) => ({
+              template_id: t.id,
+              title: t.title,
+              emoji: t.emoji,
+              duration: t.estimatedMinutes,
+              strengthen_tags: t.strengthenTags,
+              time_slot: 'anytime' as TimeSlot,
+              reason: '',
+            })),
+          );
+        }
+        setLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // time_slot 기준 필터
+  const filteredRecs = useMemo(() => {
+    // anytime은 모든 탭에 보여줘서 사용자가 발견할 수 있게
+    return geminiRecs.filter(
+      (r) => r.time_slot === activeTimePeriod || r.time_slot === 'anytime',
+    );
+  }, [geminiRecs, activeTimePeriod]);
 
   const handleToggle = useCallback((id: number) => {
     setSelectedIds((prev) => {
@@ -96,16 +223,16 @@ export function HabitRecommendationStep({ navigation }: Props) {
   }, []);
 
   const handleComplete = useCallback(() => {
-    // Add selected templates as habits
-    for (const template of recommended) {
-      if (selectedIds.has(template.id)) {
+    // Gemini가 배정한 time_slot 그대로 저장
+    for (const rec of geminiRecs) {
+      if (selectedIds.has(rec.template_id)) {
         addHabit({
-          title: template.title,
-          emoji: template.emoji,
-          hashtags: template.strengthenTags,
+          title: rec.title,
+          emoji: rec.emoji,
+          hashtags: rec.strengthen_tags,
           frequency: 'daily',
-          timeSlot: 'anytime',
-          duration: template.estimatedMinutes,
+          timeSlot: rec.time_slot,
+          duration: rec.duration,
         });
       }
     }
@@ -117,7 +244,7 @@ export function HabitRecommendationStep({ navigation }: Props) {
       withSpring(1, { damping: 10, stiffness: 120 }),
     );
     textOpacity.value = withDelay(200, withTiming(1, { duration: 300 }));
-  }, [selectedIds, recommended, addHabit, emojiScale, textOpacity]);
+  }, [selectedIds, geminiRecs, addHabit, emojiScale, textOpacity]);
 
   const emojiStyle = useAnimatedStyle(() => ({
     transform: [{ scale: emojiScale.value }],
@@ -146,11 +273,12 @@ export function HabitRecommendationStep({ navigation }: Props) {
         contentContainerStyle={styles.timePeriodContent}>
         {TIME_PERIODS.map((period) => {
           const isActive = period.id === activeTimePeriod;
+          const Icon = period.Icon;
           return (
             <TouchableOpacity
               key={period.id}
               style={styles.timePeriodItem}
-              onPress={() => setActiveTimePeriod(period.id)}
+              onPress={() => setActiveTimePeriod(period.id as TimeSlot)}
               activeOpacity={0.7}>
               <View
                 style={[
@@ -160,7 +288,11 @@ export function HabitRecommendationStep({ navigation }: Props) {
                     borderColor: theme.primaryColor,
                   },
                 ]}>
-                <Text style={styles.timePeriodEmoji}>{period.emoji}</Text>
+                <Icon
+                  size={26}
+                  color={isActive ? theme.primaryColor : theme.textSecondary}
+                  strokeWidth={1.8}
+                />
               </View>
               <Text
                 style={[
@@ -182,18 +314,25 @@ export function HabitRecommendationStep({ navigation }: Props) {
         style={styles.listScroll}
         contentContainerStyle={styles.listContent}
         showsVerticalScrollIndicator={false}>
-        {filteredTemplates.length === 0 ? (
+        {loading ? (
+          <View style={styles.emptyState}>
+            <ActivityIndicator size="large" color={theme.primaryColor} />
+            <Text style={[styles.emptyText, { color: theme.textSecondary, marginTop: 16 }]}>
+              일정에 맞는 습관을 분석하고 있어요…
+            </Text>
+          </View>
+        ) : filteredRecs.length === 0 ? (
           <View style={styles.emptyState}>
             <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
               이 시간대에 맞는 추천 습관이 없어요
             </Text>
           </View>
         ) : (
-          filteredTemplates.map((template) => {
-            const isSelected = selectedIds.has(template.id);
+          filteredRecs.map((rec) => {
+            const isSelected = selectedIds.has(rec.template_id);
             return (
               <TouchableOpacity
-                key={template.id}
+                key={rec.template_id}
                 style={[
                   styles.templateCard,
                   isSelected && {
@@ -201,7 +340,7 @@ export function HabitRecommendationStep({ navigation }: Props) {
                     borderColor: theme.primaryColor,
                   },
                 ]}
-                onPress={() => handleToggle(template.id)}
+                onPress={() => handleToggle(rec.template_id)}
                 activeOpacity={0.7}>
                 <View style={styles.templateRow}>
                   <View
@@ -213,24 +352,24 @@ export function HabitRecommendationStep({ navigation }: Props) {
                       },
                     ]}>
                     {isSelected && (
-                      <Text style={styles.checkIcon}>{'\u2713'}</Text>
+                      <Text style={styles.checkIcon}>{'✓'}</Text>
                     )}
                   </View>
-                  <Text style={styles.templateEmoji}>{template.emoji}</Text>
+                  <Text style={styles.templateEmoji}>{rec.emoji}</Text>
                   <View style={styles.templateInfo}>
                     <Text
                       style={[
                         styles.templateTitle,
                         { color: theme.textPrimary },
                       ]}>
-                      {template.title}
+                      {rec.title}
                     </Text>
                     <Text
                       style={[
                         styles.templateDuration,
                         { color: theme.textSecondary },
                       ]}>
-                      {template.estimatedMinutes}분
+                      {rec.duration}분{rec.reason ? ' · ' + rec.reason : ''}
                     </Text>
                   </View>
                 </View>

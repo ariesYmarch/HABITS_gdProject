@@ -23,7 +23,7 @@ export function ProgressBar({
     <View style={styles.container}>
       <View style={styles.track}>
         <LinearGradient
-          colors={theme.gradientColors}
+          colors={[theme.gradientColors[1], theme.gradientColors[2]]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 0 }}
           style={[styles.fill, { width: `${progress * 100}%` as any }]}

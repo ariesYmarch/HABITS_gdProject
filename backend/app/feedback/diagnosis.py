@@ -149,7 +149,7 @@ def _emotion_kr(emo: Optional[str]) -> Optional[str]:
 _DIAGNOSIS_MATRIX: dict[tuple[str, str], dict] = {
     # ===== very_high (80-100%) =====
     ("very_high", "positive_dominant"): {
-        "label": "성취도 높고 마음도 가벼웠던 한 기간이었어요",
+        "label": "성취도도 높고 마음도 가벼웠던 기간이었어요",
         "detail": (
             "습관 이행률이 {rate_pct}%로 매우 높았고, 일기에 기록된 감정도 긍정 쪽으로 기울었어요. "
             "행동과 감정이 같은 방향으로 가는 흐름은 흔치 않은데, 이번 기간이 바로 그런 모습이에요. "
@@ -158,7 +158,7 @@ _DIAGNOSIS_MATRIX: dict[tuple[str, str], dict] = {
         "keywords": ["성취-긍정 동행", "안정 루틴", "확장 가능"],
     },
     ("very_high", "negative_dominant"): {
-        "label": "행동은 잘 이어졌지만 마음은 좀 무거웠던 한 기간이었어요",
+        "label": "실천은 잘 이어졌지만 마음은 무거웠던 기간이었어요",
         "detail": (
             "습관 이행률은 {rate_pct}%로 매우 높았지만, 감정 기록은 부정 쪽이 더 많이 나타났어요. "
             "결과적으로 잘 해내고 있지만 정신적으로는 지쳐가는 신호일 수 있어요. "
@@ -261,7 +261,7 @@ _DIAGNOSIS_MATRIX: dict[tuple[str, str], dict] = {
 
     # ===== low (20-40%) =====
     ("low", "positive_dominant"): {
-        "label": "기분은 좋았는데 실제 행동까지는 이어지지 못한 한 기간이었어요",
+        "label": "기분은 좋았지만 실천까지 이어지지 못했던 기간이었어요",
         "detail": (
             "감정은 긍정 쪽이 더 많이 나타났지만, 습관 이행률은 {rate_pct}%에 머물렀어요. "
             "동기는 충분한데 행동으로 옮기기가 어려웠다면, 습관 자체가 본인 일과에 맞지 않거나 "
@@ -271,7 +271,7 @@ _DIAGNOSIS_MATRIX: dict[tuple[str, str], dict] = {
         "keywords": ["감정-행동 불일치", "환경 조정", "트리거 점검"],
     },
     ("low", "negative_dominant"): {
-        "label": "마음도 무겁고 이행도 쉽지 않았던 회복이 필요한 한 기간이었어요",
+        "label": "마음도 실천도 쉽지 않았던, 회복이 필요했던 기간이었어요",
         "detail": (
             "습관 이행률이 {rate_pct}%에 머물렀고, 감정도 부정 쪽이 더 많이 나타났어요. "
             "지금은 행동을 끌어올리려 무리하기보다 회복에 우선순위를 두는 게 자연스러워요. "

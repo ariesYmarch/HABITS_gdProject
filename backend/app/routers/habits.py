@@ -45,7 +45,11 @@ def graduate_habit(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """사용자가 졸업 제안을 수용한 경우. habit을 비활성화 처리."""
+    """사용자가 졸업 제안을 수용한 경우. habit을 비활성화 처리.
+
+    졸업 직후 새 습관 추천은 클라이언트가 로컬 템플릿 풀에서 사용자 해시태그
+    매칭으로 직접 산출 (PostGraduationRecommendModal).
+    """
     habit = db.query(Habit).filter(
         Habit.id == habit_id,
         Habit.user_id == current_user.id,
@@ -61,4 +65,7 @@ def graduate_habit(
     habit.deactivated_at = datetime.now(timezone.utc)
     db.commit()
 
-    return {"habit_id": habit.id, "graduated_at": habit.deactivated_at.isoformat()}
+    return {
+        "habit_id": habit.id,
+        "graduated_at": habit.deactivated_at.isoformat(),
+    }

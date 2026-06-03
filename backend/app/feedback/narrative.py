@@ -189,11 +189,10 @@ def build_narrative(
                 "지금 설정된 빈도나 시간대가 본인 일과에 잘 맞는지 다시 살펴봐도 좋겠어요."
             )
     elif "high_emotion_variance" in exc.reasons:
-        var = exc.detail.get("variance", {})
         paragraphs.append(
-            f"이번 기간 감정 변동성이 평소보다 컸어요(표준편차 {var.get('stdev', '?')}). "
-            "기복이 큰 시기엔 평균만 보면 평범해 보일 수 있지만, "
-            "실제로는 감정의 진폭이 컸기 때문에 작은 회복 루틴을 추가해두는 게 도움돼요."
+            "이번 기간 감정의 기복이 평소보다 컸어요. "
+            "평균만 보면 평범해 보일 수 있지만 실제론 진폭이 큰 시기였기 때문에, "
+            "마음을 가다듬을 수 있는 작은 회복 루틴을 추가해두는 게 도움돼요."
         )
     elif "complex_emotions" in exc.reasons:
         cx = exc.detail.get("complex", {})
@@ -235,8 +234,8 @@ def build_narrative(
         diagnosis = "주의 - 성취와 컨디션의 균형 점검 필요"
         recommendation = {
             "kind": "rest",
-            "label": "휴식 추가",
-            "message": "잘 해내고 있지만 컨디션이 무거워요. 짧은 회복 시간을 일과에 추가해보세요.",
+            "label": "휴식 습관 추가",
+            "message": "잘 해내고 있지만 컨디션이 무거워요. 호흡 명상이나 짧은 산책 같은 회복 습관을 일과에 추가해보세요.",
         }
     elif bucket == "low":
         diagnosis = "조정 필요 - 부담을 낮출 시점"

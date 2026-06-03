@@ -5,9 +5,7 @@ from app.core.database import Base
 
 
 class FeedbackRating(Base):
-    """주간/월간 피드백 만족도 평가.
-    Recombee 명시적 피드백 신호로도 활용.
-    """
+    """주간/월간 피드백 만족도 평가. bad_reasons는 다음 Gemini 호출 hint에 반영."""
     __tablename__ = "feedback_ratings"
 
     id = Column(Integer, primary_key=True, index=True)

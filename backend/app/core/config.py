@@ -37,10 +37,6 @@ class Settings(BaseSettings):
     # Gemini (AI 피드백/리포트)
     GEMINI_API_KEY: str = ""
 
-    # Recombee (습관 추천)
-    RECOMBEE_DB_ID: str = ""
-    RECOMBEE_API_TOKEN: str = ""
-
     # Resend (이메일 발송)
     RESEND_API_KEY: str = ""
     EMAIL_FROM: str = "noreply@example.com"

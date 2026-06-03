@@ -16,6 +16,12 @@ export async function listGraduationCandidates(): Promise<GraduationCandidate[]>
   return res.data.candidates;
 }
 
-export async function graduateHabit(habitId: number): Promise<void> {
-  await api.post(`/api/v1/habits/${habitId}/graduate`);
+export interface GraduateResponse {
+  habit_id: number;
+  graduated_at: string;
+}
+
+export async function graduateHabit(habitId: number): Promise<GraduateResponse> {
+  const res = await api.post<GraduateResponse>(`/api/v1/habits/${habitId}/graduate`);
+  return res.data;
 }
