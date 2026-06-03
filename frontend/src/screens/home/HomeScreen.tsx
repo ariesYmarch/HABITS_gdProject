@@ -6,6 +6,7 @@ import {
   ScrollView,
   TouchableOpacity,
   StyleSheet,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -116,6 +117,8 @@ export function HomeScreen({ navigation }: any) {
   const [weekStart, setWeekStart] = useState(getWeekStart(new Date()));
   const [viewMode, setViewMode] = useState<CalendarViewMode>('week');
   const [isExpanded, setIsExpanded] = useState(false);
+  const [durationEditTarget, setDurationEditTarget] = useState<Habit | null>(null);
+  const updateHabit = useAppStore((s) => s.updateHabit);
 
   // 레몬색 투명도 높인 그라데이션 (로고 외 UI용)
   const softGradient: [string, string] = [theme.gradientColors[1], theme.gradientColors[2]];
@@ -246,17 +249,10 @@ export function HomeScreen({ navigation }: any) {
 
     const rowInner = (
       <View key={habit.id} style={s.habitRow}>
-        {/* 정보 영역 - 우측 버튼과 동일한 동작 */}
+        {/* 정보 영역 - 탭하면 소요시간 조정 모달 */}
         <TouchableOpacity
           style={s.habitInfoTouch}
-          onPress={() => {
-            if (isFuture) return;
-            if (isToday_ && !done) {
-              navigation?.navigate?.('HabitTimer', { habitId: habit.id });
-            } else {
-              toggleHabit(habit.id);
-            }
-          }}
+          onPress={() => setDurationEditTarget(habit)}
           activeOpacity={0.7}
         >
           <Text style={s.habitEmoji}>{habit.emoji}</Text>
@@ -478,7 +474,93 @@ export function HomeScreen({ navigation }: any) {
         </View>
 
       </ScrollView>
+
+      <DurationPickerModal
+        habit={durationEditTarget}
+        theme={theme}
+        onClose={() => setDurationEditTarget(null)}
+        onSave={(minutes) => {
+          if (durationEditTarget) {
+            updateHabit(durationEditTarget.id, { duration: minutes });
+            schedulePush();
+          }
+          setDurationEditTarget(null);
+        }}
+      />
     </SafeAreaView>
+  );
+}
+
+
+/* ── 소요시간만 조정하는 가벼운 모달 ── */
+const _DURATION_OPTIONS = [5, 10, 15, 20, 30, 45, 60, 90, 120];
+
+function DurationPickerModal({
+  habit, theme, onClose, onSave,
+}: {
+  habit: Habit | null;
+  theme: any;
+  onClose: () => void;
+  onSave: (minutes: number) => void;
+}) {
+  const [picked, setPicked] = useState<number>(habit?.duration || 15);
+
+  useEffect(() => {
+    if (habit) setPicked(habit.duration);
+  }, [habit]);
+
+  if (!habit) return null;
+
+  return (
+    <Modal visible transparent animationType="fade" onRequestClose={onClose}>
+      <View style={s.dpOverlay}>
+        <View style={[s.dpCard, { backgroundColor: theme.backgroundColor }]}>
+          <Text style={[s.dpHabitLabel, { color: theme.textSecondary }]}>
+            소요시간 조정
+          </Text>
+          <Text style={[s.dpTitle, { color: theme.textPrimary }]} numberOfLines={1}>
+            {habit.title}
+          </Text>
+
+          <View style={s.dpChipRow}>
+            {_DURATION_OPTIONS.map((d) => {
+              const isSel = picked === d;
+              return (
+                <TouchableOpacity
+                  key={d}
+                  onPress={() => setPicked(d)}
+                  style={[
+                    s.dpChip,
+                    {
+                      backgroundColor: isSel ? theme.primaryColor : theme.primaryColor + '14',
+                    },
+                  ]}
+                >
+                  <Text style={[s.dpChipText, { color: isSel ? '#FFF' : theme.textPrimary }]}>
+                    {d}분
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+
+          <View style={s.dpBtnRow}>
+            <TouchableOpacity
+              onPress={onClose}
+              style={[s.dpBtn, { backgroundColor: '#F0F1F5' }]}
+            >
+              <Text style={[s.dpBtnText, { color: theme.textPrimary }]}>취소</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => onSave(picked)}
+              style={[s.dpBtn, { backgroundColor: theme.primaryColor }]}
+            >
+              <Text style={[s.dpBtnText, { color: '#FFFFFF' }]}>저장</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
   );
 }
 
@@ -537,6 +619,25 @@ const s = StyleSheet.create({
     flexDirection: 'row', gap: 6, borderRadius: 12, marginVertical: 4,
   },
   swipeActionText: { color: '#FFFFFF', fontSize: 13, fontWeight: '700' },
+
+  // DurationPickerModal
+  dpOverlay: {
+    flex: 1, backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'center', alignItems: 'center', padding: 24,
+  },
+  dpCard: {
+    width: '100%', maxWidth: 360, borderRadius: 18, padding: 22,
+    shadowColor: '#000', shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15, shadowRadius: 12, elevation: 6,
+  },
+  dpHabitLabel: { fontSize: 12, fontWeight: '500', marginBottom: 4 },
+  dpTitle: { fontSize: 17, fontWeight: '700', marginBottom: 16 },
+  dpChipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 20 },
+  dpChip: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: 18 },
+  dpChipText: { fontSize: 13, fontWeight: '600' },
+  dpBtnRow: { flexDirection: 'row', gap: 8 },
+  dpBtn: { flex: 1, paddingVertical: 12, borderRadius: 10, alignItems: 'center' },
+  dpBtnText: { fontSize: 14, fontWeight: '700' },
   habitInfoTouch: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 12 },
   checkboxClip: { width: 36, height: 36, borderRadius: 18, overflow: 'hidden' as const },
   checkboxGrad: { width: 36, height: 36, alignItems: 'center', justifyContent: 'center' },

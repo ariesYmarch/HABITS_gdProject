@@ -162,6 +162,9 @@ export function ReportScreen() {
 
   const handleGenerateNow = () => runGenerate(false);
 
+  const [postGradModalOpen, setPostGradModalOpen] = useState(false);
+  const [postGradGraduatedHabit, setPostGradGraduatedHabit] = useState<string | null>(null);
+
   const handleGraduate = async (c: GraduationCandidate) => {
     showAlert({
       title: '습관 졸업',
@@ -173,7 +176,9 @@ export function ReportScreen() {
             try {
               await graduateHabit(c.habit_id);
               await load();
-              showAlert({ title: '완료', message: '축하합니다! 새로운 습관에 도전해보세요.' });
+              // 졸업 직후 로컬 템플릿 풀에서 새 습관 추천 모달
+              setPostGradGraduatedHabit(c.habit_title);
+              setPostGradModalOpen(true);
             } catch (e: any) {
               showAlert({ title: '오류', message: e?.response?.data?.detail || '졸업 처리 실패' });
             }
@@ -360,6 +365,20 @@ export function ReportScreen() {
         onClose={() => setBadRatingTarget(null)}
         onSubmit={(comment) => {
           if (badRatingTarget) submitRate(badRatingTarget, 'bad', comment);
+        }}
+      />
+
+      <PostGraduationRecommendModal
+        visible={postGradModalOpen}
+        theme={theme}
+        graduatedHabitTitle={postGradGraduatedHabit}
+        onClose={() => setPostGradModalOpen(false)}
+        onAdded={() => {
+          setPostGradModalOpen(false);
+          showAlert({
+            title: '추가 완료',
+            message: '새 습관이 추가됐어요. 홈에서 확인하세요.',
+          });
         }}
       />
 
@@ -590,6 +609,7 @@ function ReportDetailModal({ report, theme, onClose, onRate }: ModalProps) {
   const [accepted, setAccepted] = useState(false);
   const [editTarget, setEditTarget] = useState<Habit | null>(null);
   const [showAddHabit, setShowAddHabit] = useState(false);
+  const [addHabitMode, setAddHabitMode] = useState<'default' | 'rest'>('default');
   const habits = useAppStore((s) => s.habits);
 
   if (!report) return null;
@@ -612,11 +632,19 @@ function ReportDetailModal({ report, theme, onClose, onRate }: ModalProps) {
 
     // add_habit 추천: 종류·빈도·시간대·소요시간 새 습관 추가 모달
     if (rec.kind === 'add_habit') {
+      setAddHabitMode('default');
       setShowAddHabit(true);
       return;
     }
 
-    // 그 외 (reduce_frequency / rest 등): 기존 습관 수정 모달
+    // rest 추천: 휴식·마음챙김 관련 새 습관 제안 (별도 필터)
+    if (rec.kind === 'rest') {
+      setAddHabitMode('rest');
+      setShowAddHabit(true);
+      return;
+    }
+
+    // 그 외 (reduce_frequency 등): 기존 습관 수정 모달
     let target: Habit | undefined;
     if (rec.habit_id) {
       target = habits.find((h) => h.id === rec.habit_id);
@@ -818,10 +846,11 @@ function ReportDetailModal({ report, theme, onClose, onRate }: ModalProps) {
         onSaved={handleEditSaved}
       />
 
-      {/* add_habit 추천 시 띄우는 새 습관 추가 모달 */}
+      {/* add_habit / rest 추천 시 띄우는 새 습관 추가 모달 (mode에 따라 필터 다름) */}
       <AddHabitFromReportModal
         visible={showAddHabit}
         theme={theme}
+        mode={addHabitMode}
         onClose={() => setShowAddHabit(false)}
         onSaved={handleAddHabitSaved}
       />
@@ -834,6 +863,7 @@ function ReportDetailModal({ report, theme, onClose, onRate }: ModalProps) {
 interface AddHabitModalProps {
   visible: boolean;
   theme: any;
+  mode?: 'default' | 'rest';   // 'rest'면 휴식·마음챙김 관련 템플릿만 노출
   onClose: () => void;
   onSaved: () => void;
 }
@@ -858,19 +888,40 @@ const _ADD_TIME_OPTIONS: {
 
 const _ADD_DURATION_OPTIONS = [5, 10, 15, 20, 30, 45, 60];
 
-function AddHabitFromReportModal({ visible, theme, onClose, onSaved }: AddHabitModalProps) {
+function AddHabitFromReportModal({ visible, theme, mode = 'default', onClose, onSaved }: AddHabitModalProps) {
   const addHabit = useAppStore((s) => s.addHabit);
   const selectedHashtags = useAppStore((s) => s.selectedHashtags);
   const habits = useAppStore((s) => s.habits);
 
-  // 사용자 선택 해시태그에 매칭되는 템플릿 추천 (이미 추가된 습관은 제외)
+  // 사용자 선택 해시태그 + (rest 모드면 휴식·마음챙김 필터)에 매칭되는 템플릿 (이미 추가된 습관 제외)
   const candidateTemplates = useMemo(() => {
     const tagSet = new Set(selectedHashtags);
     const existingTitles = new Set(
       habits.filter((h) => h.isActive && !h.deletedAt).map((h) => h.title),
     );
-    return recommendTemplates(tagSet, 12).filter((t) => !existingTitles.has(t.title));
-  }, [selectedHashtags, habits]);
+    let pool = recommendTemplates(tagSet, 30);
+
+    if (mode === 'rest') {
+      // 휴식/마음챙김 관련: category=mindset 또는 contexts에 rest/leisure 포함
+      pool = pool.filter((t) =>
+        t.category === 'mindset' ||
+        (t.contexts || []).some((c) => c === 'rest' || c === 'leisure'),
+      );
+      // 해시태그 매칭이 부족하면 전체 mindset/rest 풀로 보강
+      if (pool.length < 5) {
+        const HABIT_TEMPLATES = require('../../data/habitTemplates').HABIT_TEMPLATES;
+        const extra = (HABIT_TEMPLATES as HabitTemplateItem[]).filter(
+          (t) =>
+            !pool.find((p) => p.id === t.id) &&
+            (t.category === 'mindset' ||
+              (t.contexts || []).some((c: any) => c === 'rest' || c === 'leisure')),
+        );
+        pool = [...pool, ...extra];
+      }
+    }
+
+    return pool.filter((t) => !existingTitles.has(t.title)).slice(0, 12);
+  }, [selectedHashtags, habits, mode]);
 
   const [pickedTemplate, setPickedTemplate] = useState<HabitTemplateItem | null>(null);
   const [frequency, setFrequency] = useState<HabitFrequency>('daily');
@@ -919,7 +970,7 @@ function AddHabitFromReportModal({ visible, theme, onClose, onSaved }: AddHabitM
         <View style={[s.modalContent, { backgroundColor: theme.backgroundColor }]}>
           <View style={s.modalHeader}>
             <Text style={[s.modalTitle, { color: theme.textPrimary }]}>
-              {pickedTemplate ? '습관 설정' : '추천 습관'}
+              {pickedTemplate ? '습관 설정' : (mode === 'rest' ? '휴식 습관 추천' : '추천 습관')}
             </Text>
             <TouchableOpacity
               onPress={pickedTemplate ? () => setPickedTemplate(null) : onClose}
@@ -935,8 +986,9 @@ function AddHabitFromReportModal({ visible, theme, onClose, onSaved }: AddHabitM
             {!pickedTemplate ? (
               <>
                 <Text style={[s.addRecommendHint, { color: theme.textSecondary }]}>
-                  선택하신 해시태그({selectedHashtags.join(' ') || '없음'})에 어울리는 습관이에요.
-                  마음에 드는 걸 골라보세요.
+                  {mode === 'rest'
+                    ? '마음을 가다듬고 회복할 수 있는 짧은 습관들이에요. 무리하지 않게 한 가지만 골라보세요.'
+                    : `선택하신 해시태그(${selectedHashtags.join(' ') || '없음'})에 어울리는 습관이에요. 마음에 드는 걸 골라보세요.`}
                 </Text>
                 {candidateTemplates.length === 0 ? (
                   <Text style={[s.addRecommendEmpty, { color: theme.textSecondary }]}>
@@ -1282,6 +1334,107 @@ function PersonalityProgressCard({ report, theme }: PeriodCardProps) {
       <Sparkles size={18} color={theme.primaryColor} />
       <Text style={[s.personalityText, { color: theme.textPrimary }]}>{message}</Text>
     </View>
+  );
+}
+
+
+/* ── 졸업 직후 새 습관 추천 모달 ── */
+interface PostGradModalProps {
+  visible: boolean;
+  theme: any;
+  graduatedHabitTitle: string | null;
+  onClose: () => void;
+  onAdded: () => void;
+}
+
+function PostGraduationRecommendModal({
+  visible, theme, graduatedHabitTitle, onClose, onAdded,
+}: PostGradModalProps) {
+  const addHabit = useAppStore((s) => s.addHabit);
+  const selectedHashtags = useAppStore((s) => s.selectedHashtags);
+  const habits = useAppStore((s) => s.habits);
+
+  const candidates = useMemo(() => {
+    // 사용자 선택 해시태그 기반 로컬 템플릿 매칭 (이미 보유 중인 습관 제외)
+    const ownedTitles = new Set(
+      habits.filter((h) => h.isActive && !h.deletedAt).map((h) => h.title),
+    );
+    const tagSet = new Set(selectedHashtags);
+    return recommendTemplates(tagSet, 10)
+      .filter((t) => !ownedTitles.has(t.title))
+      .slice(0, 5);
+  }, [selectedHashtags, habits]);
+
+  const handlePick = (t: HabitTemplateItem) => {
+    const userTagSet = new Set(selectedHashtags);
+    const overlap = t.strengthenTags.filter((tag) => userTagSet.has(tag));
+    addHabit({
+      title: t.title,
+      emoji: t.emoji,
+      hashtags: overlap.length > 0 ? overlap : t.strengthenTags,
+      frequency: 'daily',
+      timeSlot: 'anytime',
+      duration: t.estimatedMinutes,
+    });
+    pushSync().catch(() => {});
+    onAdded();
+  };
+
+  return (
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
+      <View style={s.modalOverlay}>
+        <View style={[s.modalContent, { backgroundColor: theme.backgroundColor }]}>
+          <View style={s.modalHeader}>
+            <View style={{ flex: 1 }}>
+              <Text style={[s.modalTitle, { color: theme.textPrimary }]}>
+                새 습관에 도전해볼까요?
+              </Text>
+              <Text style={[s.modalSubTitle, { color: theme.textSecondary, marginTop: 4 }]}>
+                {graduatedHabitTitle
+                  ? `'${graduatedHabitTitle}' 졸업을 축하해요. 다음 단계로 어울리는 습관 후보예요.`
+                  : '졸업을 축하해요. 다음 단계로 어울리는 습관 후보예요.'}
+              </Text>
+            </View>
+            <TouchableOpacity onPress={onClose} style={s.closeBtn}>
+              <Text style={{ color: theme.textSecondary, fontSize: 20 }}>✕</Text>
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView contentContainerStyle={{ paddingBottom: 12 }}>
+            {candidates.length === 0 ? (
+              <Text style={[s.addRecommendEmpty, { color: theme.textSecondary }]}>
+                추천 후보가 없어요. 잠시 후 다시 시도해주세요.
+              </Text>
+            ) : (
+              candidates.map((t) => {
+                const userTagSet = new Set(selectedHashtags);
+                const matchedTags = t.strengthenTags.filter((tag) => userTagSet.has(tag));
+                return (
+                  <TouchableOpacity
+                    key={t.id}
+                    onPress={() => handlePick(t)}
+                    activeOpacity={0.7}
+                    style={[s.addTemplateCard, { borderColor: theme.primaryColor + '30' }]}
+                  >
+                    <Text style={s.addTemplateEmoji}>{t.emoji}</Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={[s.addTemplateTitle, { color: theme.textPrimary }]} numberOfLines={1}>
+                        {t.title}
+                      </Text>
+                      <Text style={[s.addTemplateMeta, { color: theme.textSecondary }]} numberOfLines={1}>
+                        약 {t.estimatedMinutes}분
+                        {matchedTags.length > 0 ? ` · ${matchedTags.join(' ')}` : ''}
+                      </Text>
+                    </View>
+                    <Text style={[s.addTemplateArrow, { color: theme.primaryColor }]}>+</Text>
+                  </TouchableOpacity>
+                );
+              })
+            )}
+          </ScrollView>
+        </View>
+      </View>
+    </Modal>
   );
 }
 

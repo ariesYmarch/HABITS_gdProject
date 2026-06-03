@@ -98,6 +98,11 @@ export function RegisterScreen({ navigation }: Props) {
             value={password}
             onChangeText={setPassword}
             secureTextEntry
+            autoCapitalize="none"
+            autoCorrect={false}
+            autoComplete="off"
+            textContentType="oneTimeCode"
+            passwordRules=""
           />
           {password.length > 0 && !passwordValid && (
             <Text style={styles.errorText}>
@@ -112,6 +117,11 @@ export function RegisterScreen({ navigation }: Props) {
             value={passwordConfirm}
             onChangeText={setPasswordConfirm}
             secureTextEntry
+            autoCapitalize="none"
+            autoCorrect={false}
+            autoComplete="off"
+            textContentType="oneTimeCode"
+            passwordRules=""
           />
           {passwordConfirm.length > 0 && !passwordsMatch && (
             <Text style={styles.errorText}>비밀번호가 일치하지 않습니다</Text>

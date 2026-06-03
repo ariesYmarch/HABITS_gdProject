@@ -12,6 +12,10 @@ from app.analytics.conditions import (
     is_monthly_data_sufficient,
     is_weekly_data_sufficient,
 )
+from app.analytics.mood_habit import (
+    build_mood_habit_paragraph,
+    compute_mood_habit_insights,
+)
 from app.feedback.diagnosis import build_diagnosis
 from app.feedback.exceptions import detect_exceptions
 from app.feedback.narrative import build_narrative
@@ -178,6 +182,12 @@ def _build_report_record(
         target_habit_rate=target_rate,
         satisfaction_avg=satisfaction.avg_score if satisfaction.count >= 2 else None,
     )
+
+    # === 개인 학습: mood × habit 상관관계 인사이트 (충분한 일기 데이터 있을 때) ===
+    mood_insights = compute_mood_habit_insights(db, user_id)
+    mood_paragraph = build_mood_habit_paragraph(mood_insights)
+    if mood_paragraph:
+        narrative.paragraphs.append(mood_paragraph)
 
     # === Gemini 핵심 작업 1: 시계열 메타 인사이트 (이전 리포트 2개 이상 있을 때만) ===
     gemini_used = diagnosis.source == "gemini"

@@ -26,9 +26,8 @@ from app.feedback.suggestions import (
     detect_graduation_candidates,
     detect_low_completion_suggestion,
 )
-from app.models import AIReport, FeedbackRating, Habit, User
+from app.models import FeedbackRating, User
 from app.services.gemini import generate_feedback
-from app.services.recombee import send_rating
 
 
 router = APIRouter(prefix="/api/v1/feedback", tags=["feedback"])
@@ -199,9 +198,6 @@ class FeedbackRateRequest(BaseModel):
     comment: Optional[str] = Field(None, max_length=500)
 
 
-_RATING_TO_RECOMBEE = {"good": 1.0, "neutral": 0.0, "bad": -1.0}
-
-
 @router.get("/satisfaction-trend")
 def satisfaction_trend(
     days: int = Query(90, ge=7, le=365),
@@ -238,7 +234,7 @@ def rate_feedback(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    """리포트 만족도 평가 저장. 해당 기간 리포트가 추천한 habit에 대해 Recombee 명시적 신호 전송."""
+    """리포트 만족도 평가 저장. bad_reasons는 satisfaction.py가 모아 다음 Gemini 호출 hint에 반영."""
     rating = FeedbackRating(
         user_id=current_user.id,
         period_type=req.period_type,
@@ -251,28 +247,4 @@ def rate_feedback(
     db.add(rating)
     db.commit()
     db.refresh(rating)
-
-    # 해당 기간 리포트의 recommendation에 들어있는 habit에 Recombee 신호 전송 (실패해도 평가 저장은 유지)
-    period_db_type = "week" if req.period_type == "weekly" else "month"
-    try:
-        report = db.query(AIReport).filter(
-            AIReport.user_id == current_user.id,
-            AIReport.period_type == period_db_type,
-            AIReport.period_start == req.period_start,
-            AIReport.period_end == req.period_end,
-        ).first()
-        if report and report.recommendation:
-            target_client_id = report.recommendation.get("habit_id")
-            if target_client_id:
-                habit = db.query(Habit).filter(
-                    Habit.user_id == current_user.id,
-                    Habit.client_id == target_client_id,
-                ).first()
-                if habit:
-                    rating_unit = _RATING_TO_RECOMBEE.get(req.rating, 0.0)
-                    # Recombee item_id로는 client_id 사용 (sync 경로와 일관)
-                    send_rating(current_user.id, habit.client_id, rating_unit)
-    except Exception:
-        pass  # Recombee 실패는 무시
-
     return {"id": rating.id, "created_at": rating.created_at.isoformat() if rating.created_at else None}

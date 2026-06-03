@@ -135,6 +135,199 @@ def enrich_diagnosis(
         return None
 
 
+def recommend_habits_personalized(
+    schedule: dict,
+    occupation: Optional[str],
+    hashtags: list[str],
+    candidates: list[dict],
+    count: int = 8,
+) -> list[dict]:
+    """사용자 일정 + 직업 + 해시태그 + 후보 습관 → Gemini가 최적 time_slot 배정해 N개 선정.
+
+    candidates: [{id, title, emoji, category, estimated_minutes, strengthen_tags}, ...]
+    반환: [{template_id, title, emoji, duration, strengthen_tags, time_slot, reason}, ...]
+    """
+    # Gemini 미설정/후보 비었을 때 fallback: candidates 그대로 + time_slot=anytime
+    def _fallback() -> list[dict]:
+        out = []
+        for c in candidates[:count]:
+            out.append({
+                "template_id": c.get("id"),
+                "title": c.get("title", ""),
+                "emoji": c.get("emoji", ""),
+                "duration": c.get("estimated_minutes", 15),
+                "strengthen_tags": c.get("strengthen_tags", []),
+                "time_slot": "anytime",
+                "reason": "",
+            })
+        return out
+
+    if not _is_configured() or not candidates:
+        return _fallback()
+
+    # 후보가 너무 많으면 prompt 비용 늘어남. 최대 30개로 제한.
+    capped_candidates = candidates[:30]
+    cand_minified = [
+        {
+            "id": c["id"],
+            "t": c.get("title", ""),
+            "cat": c.get("category", ""),
+            "min": c.get("estimated_minutes", 15),
+            "tags": c.get("strengthen_tags", []),
+        }
+        for c in capped_candidates
+    ]
+    # weekly_timetable이 있으면 free 시간대를 요일별로 요약해서 프롬프트 비용 절약
+    weekly_grid = schedule.pop("weekly_timetable", None) if isinstance(schedule, dict) else None
+    free_summary = None
+    if weekly_grid and isinstance(weekly_grid, list):
+        day_labels = ["월", "화", "수", "목", "금", "토", "일"]
+        summary_lines = []
+        for day_idx, day_row in enumerate(weekly_grid[:7]):
+            if not isinstance(day_row, list):
+                continue
+            # 연속된 free/None 구간을 (start, end) 범위로 묶음
+            free_ranges = []
+            run_start = None
+            for hour in range(min(len(day_row), 24)):
+                cell = day_row[hour]
+                is_free = cell is None or cell == "free"
+                if is_free and run_start is None:
+                    run_start = hour
+                elif not is_free and run_start is not None:
+                    free_ranges.append((run_start, hour))
+                    run_start = None
+            if run_start is not None:
+                free_ranges.append((run_start, 24))
+            if free_ranges:
+                ranges_str = ", ".join(f"{s}~{e}시" for s, e in free_ranges)
+                summary_lines.append(f"  {day_labels[day_idx]}: {ranges_str}")
+        if summary_lines:
+            free_summary = "요일별 자유 시간 (free 또는 미입력 구간):\n" + "\n".join(summary_lines)
+
+    # 슬롯별 블록 수 집계 → 사용자 시간 우선순위
+    slot_priority = None
+    if weekly_grid and isinstance(weekly_grid, list):
+        slot_counts: dict[str, int] = {"sleep": 0, "commute": 0, "work": 0, "meal": 0, "free": 0}
+        for day_row in weekly_grid[:7]:
+            if not isinstance(day_row, list):
+                continue
+            for cell in day_row[:24]:
+                if isinstance(cell, str) and cell in slot_counts:
+                    slot_counts[cell] += 1
+        sorted_slots = [s for s, c in sorted(slot_counts.items(), key=lambda x: -x[1]) if c > 0]
+        if sorted_slots:
+            priority_str = " > ".join(f"{s}({slot_counts[s]}블록)" for s in sorted_slots)
+            slot_priority = (
+                f"사용자 시간 점유 우선순위 (블록 많은 순): {priority_str}\n"
+                "→ 이 순서에 맞는 카테고리/컨텍스트 습관에 더 큰 가중치."
+            )
+
+    sched_json = json.dumps(schedule, ensure_ascii=False)
+    cand_json = json.dumps(cand_minified, ensure_ascii=False)
+    tags_str = ", ".join(hashtags) if hashtags else "없음"
+    free_block = f"\n\n{free_summary}\n" if free_summary else ""
+    priority_block = f"\n{slot_priority}\n" if slot_priority else ""
+
+    prompt = f"""당신은 HABITS 앱의 맞춤 습관 추천 어시스턴트입니다.
+
+사용자 기본 일정:
+{sched_json}{free_block}{priority_block}
+
+직업: {occupation or '미지정'}
+관심 해시태그: {tags_str}
+
+후보 습관 목록 (id, 제목, 카테고리, 소요분, 강화태그) — 프론트에서 슬롯 블록 수와 해시태그 겹침으로 사전 정렬된 순서:
+{cand_json}
+
+작업: 위 후보 중에서 사용자에게 가장 잘 맞는 {count}개를 골라, 각 습관에 가장 적합한 time_slot을 지정하세요.
+
+time_slot 값은 반드시 다음 중 하나:
+- morning: 기상 직후 ~ 출근 전
+- commute: 출근/등교 이동 중 (hasCommute가 true일 때만 사용 권장)
+- lunch: 점심시간
+- afternoon: 점심 후 ~ 저녁 전
+- evening: 퇴근/하교 후 ~ 잠들기 전 2시간 전
+- bedtime: 잠들기 전 1시간
+- anytime: 특정 시간대 무관
+
+배정 원칙:
+1. **'사용자 시간 점유 우선순위'에서 블록이 가장 많은 슬롯 타입을 최우선 가중**. 예: commute 블록이 가장 많으면 commute 관련 습관을 우선 추천하고 time_slot=commute 배정
+2. 그 다음 우선순위 슬롯 타입의 습관을 그 다음 순위로 추천
+3. 위에 표시된 '요일별 자유 시간'은 새 습관 수행 후보 시간대로 적극 활용. work/sleep/commute/meal 시간은 절대 피하기
+4. commute slot은 has_commute=true일 때만 사용
+5. 같은 time_slot에 너무 몰리지 않게 분산
+6. 직업 특성 반영 (학생→learning 비중↑, 직장인→evening 회복 비중↑)
+7. 해시태그(예: #끈기, #성실, #도전적)에서 드러나는 사용자 성향을 추천 사유에 직접 언급
+
+출력은 반드시 JSON 배열만, 다른 텍스트 없이:
+[
+  {{"id": 1, "time_slot": "morning", "reason": "평일 7~8시 자유 시간이 있으니 기상 직후 5분 루틴으로 좋아요"}},
+  ...
+]
+"""
+
+    try:
+        response = requests.post(
+            GEMINI_ENDPOINT,
+            params={"key": settings.GEMINI_API_KEY},
+            headers={"Content-Type": "application/json"},
+            json={
+                "contents": [{"parts": [{"text": prompt}]}],
+                "generationConfig": {
+                    "temperature": 0.4, "topP": 0.9, "maxOutputTokens": 1200,
+                    "responseMimeType": "application/json",
+                },
+            },
+            timeout=20,
+        )
+        response.raise_for_status()
+        data = response.json()
+        candidates_resp = data.get("candidates", [])
+        if not candidates_resp:
+            return _fallback()
+        parts = candidates_resp[0].get("content", {}).get("parts", [])
+        if not parts:
+            return _fallback()
+        text = parts[0].get("text", "").strip()
+        if not text:
+            return _fallback()
+        parsed = json.loads(text)
+    except Exception:
+        return _fallback()
+
+    if not isinstance(parsed, list):
+        return _fallback()
+
+    valid_slots = {"morning", "commute", "lunch", "afternoon", "evening", "bedtime", "anytime"}
+    cand_map = {c["id"]: c for c in candidates}
+    result: list[dict] = []
+    for item in parsed:
+        try:
+            tid = int(item.get("id"))
+        except Exception:
+            continue
+        ts = item.get("time_slot", "anytime")
+        if ts not in valid_slots:
+            ts = "anytime"
+        c = cand_map.get(tid)
+        if not c:
+            continue
+        result.append({
+            "template_id": c["id"],
+            "title": c.get("title", ""),
+            "emoji": c.get("emoji", ""),
+            "duration": c.get("estimated_minutes", 15),
+            "strengthen_tags": c.get("strengthen_tags", []),
+            "time_slot": ts,
+            "reason": str(item.get("reason", ""))[:120],
+        })
+        if len(result) >= count:
+            break
+
+    return result if result else _fallback()
+
+
 def generate_meta_insight(
     period_label: str,
     history: list[dict],
