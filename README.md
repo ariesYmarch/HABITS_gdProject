@@ -14,12 +14,12 @@
 
 **"무작정 따라 하는 습관이 아닌, '나'를 이해하고 성장시키는 습관 코칭"**
 
-**HABITS**는 사용자의 심리적 성향, 일과 스케줄, 매일의 감정 상태를 통합 분석해 **'이상적인 나'로 나아가는 과정**을 돕는 AI 기반 습관 코칭 모바일 앱입니다. 단순 체크리스트를 넘어, 행동(이행률)과 감정의 교차분석으로 *왜 안 됐는지* 까지 진단해 다음 액션을 제안합니다.
+**HABITS**는 사용자의 심리적 성향, 일과 스케줄, 매일의 감정 상태를 통합 분석해 **'이상적인 나'로 나아가는 과정**을 돕는 AI 기반 습관 코칭 모바일 앱입니다. 단순 체크리스트를 넘어, 행동과 감정의 교차분석으로 *왜 습관 이행이 어려웠는지* 까지 진단해 다음 액션을 제안합니다.
 
 ### 🎯 Key Goals
 - **Self-Discovery** — 36개 해시태그 기반 성격 테스트로 '현재의 나' ↔ '이상적인 나' 격차 파악
 - **Context-Aware Recommendation** — 사용자가 입력한 일주일 스케줄을 기반으로 Gemini가 습관별 최적 시간대 자동 매핑
-- **Emotion-Aware Feedback** — KoELECTRA 8-class 감정 분류 + 한국어 키워드 사전으로 일기 분석, 행동/감정 교차 진단을 주·월간 리포트로 제공
+- **Emotion-Aware Feedback** — KoELECTRA 8-class 감정 분류 & 한국어 키워드 사전으로 일기 분석, 행동/감정 교차 진단을 주·월간 리포트로 제공
 - **Mood × Habit Insight** — 누적된 일기 mood_score와 습관 로그를 교차 분석해 "컨디션과 함께 가는 습관" / "회복 루틴" 자동 도출
 - **Closed Feedback Loop** — 리포트 만족도 평가 → 다음 리포트 톤/Gemini 호출 분기에 자동 반영
 
@@ -31,15 +31,12 @@
 | :--- | :--- | :--- |
 | **Mobile** | React Native 0.84 + TypeScript | iOS·Android 단일 코드베이스 |
 | **State** | Zustand + persist + AsyncStorage | Local-First 저장소 |
-| **Navigation** | React Navigation Native Stack | |
-| **Icons** | lucide-react-native + react-native-svg | 폰 이모지 → 픽토그램 |
-| **Gesture** | react-native-gesture-handler (Swipeable) | 습관 토글 스와이프 |
 | **Backend** | FastAPI 0.104 (Python 3.12) + APScheduler | 자동 리포트 스케줄러 |
 | **DB** | PostgreSQL via Supabase (Session Pooler) | RLS + 권한 회수로 PostgREST 노출 차단 |
 | **ORM** | SQLAlchemy 2.0 + Alembic | |
-| **Auth** | JWT (HS256, access 15분 + refresh 7일) + bcrypt cost 12 | refresh race-lock 적용 |
+| **Auth** | JWT, bcrypt cost 12 | refresh race-lock 적용 |
 | **AI #1** | **KoELECTRA** (`monologg/koelectra-base-v3-discriminator`, HF Inference API) | 8-class 감정 분류 (AI Hub 감성 대화 말뭉치 파인튜닝) |
-| **AI #2** | **Gemini 2.5 Flash** | 시계열 메타 인사이트, 추천 이유 개인화, 일정 기반 time_slot 배정 |
+| **AI #2** | **Gemini 2.5 Flash** | 시계열 메타 인사이트, 피드백 리포트 생성 시 문장 풍부화 |
 | **Mail** | Resend API | 비밀번호 재설정 |
 
 ---
@@ -78,10 +75,10 @@ graph TD
 ## 🧠 Core Logic
 
 ### 1. 감정 분석 (KoELECTRA)
-한국어 ELECTRA 베이스를 AI Hub 감성 대화 말뭉치(30+ 세부 라벨)를 우리 8 클래스(joy/calm/proud/hope/sadness/anger/anxiety/fatigue)로 통합 후 weighted CrossEntropy로 클래스 불균형 보정해 파인튜닝함. 모델 confidence가 모호한 케이스는 8 라벨 × 250+@ 표현의 **한국어 키워드 사전**(구어체·신조어 포함)으로 보완 신호를 만들어 가중 평균을 **모델 70% + 키워드 30%**로 설정.
+한국어 ELECTRA 베이스를 AI Hub 감성 대화 말뭉치(30개 이상의 세부 라벨)를 감정 8 클래스(joy/calm/proud/hope/sadness/anger/anxiety/fatigue)로 통합 후 weighted CrossEntropy로 클래스 불균형을 보정해 파인튜닝함. 모델 confidence가 모호한 케이스는 8 라벨 × 250개 이상의 표현을 가지고 있는 **한국어 키워드 사전**으로 보완 신호를 만듦.
 
 ### 2. AI 리포트: 결정 매트릭스 & Gemini 하이브리드
-LLM 환각 위험을 피하기 위해 **정적 진단을 먼저**진행하고, **문장 풍부화만 LLM에** 위임함. 이행률 5구간(very_low~very_high) × 감정 4구간(positive/negative/mixed/no_data), 총 **20개의 셀 매트릭스**가 피드백 리포트의 라벨·줄글·키워드를 결정함. Gemini는 먼저 최근 생성된 3개 이상의 리포트를 보고 그간의 경향성을 반영하는 **시계열 패턴 인사이트** 1문단 생성하고, 이후 **추천 행동 이유**를 사용자 데이터 인용해 개인화함. 사용자가 피드백 리포트의 만족도에 아쉽다는 피드백과 그 사유를 남기면 **다음 리포트 Gemini 호출 시 힌트**로 인용되어 개선 루프를 형성함.
+LLM 환각 위험을 피하기 위해 **정적 진단을 먼저**진행하고, **문장 풍부화만 LLM에** 위임함. 이행률 5구간(very_low~very_high) × 감정 4구간(positive/negative/mixed/no_data), 총 **20개의 셀 매트릭스**가 피드백 리포트의 라벨·줄글·키워드를 결정함. Gemini는 먼저 최근 생성된 3개 이상의 리포트를 보고 그간의 경향성을 반영하는 **시계열 패턴 인사이트**를 한 문단 생성하고, 문장 풍부화를 진행함. 만약 사용자가 피드백 리포트의 만족도에 아쉽다는 피드백과 그 사유를 남기면 **다음 리포트 Gemini 호출 시 힌트**로 인용되어 개선 루프를 형성함.
 
 ### 3. Mood × Habit Correlation Insights
 최근 60일 일기의 `mood_score`를 33/66 분위로 나눠 "기분 좋은 날" vs "힘든 날" 그룹을 만들고, 활성 습관별 이행률 차이가 **25%p 이상**인 케이스만 인사이트 후보로 추출함. 차이 방향에 따라 `high_better`(컨디션과 함께 가는 습관) / `low_better`(어려운 시기 회복 루틴)로 해석해 리포트 본문에 1~2문장 자연어로 삽입함.
