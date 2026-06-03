@@ -44,7 +44,7 @@ export function HabitTimerScreen({ route, navigation }: Props) {
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const completedRef = useRef(false);
 
-  // habit 변경 시 리셋
+  // habit 변경 시 리셋 — id만 의존해서 toggleHabitCompletion 후 reference 변경에는 반응 X
   useEffect(() => {
     if (habit) {
       setRemaining(habit.duration * 60);
@@ -52,7 +52,8 @@ export function HabitTimerScreen({ route, navigation }: Props) {
       completedRef.current = false;
       setRunning(true);
     }
-  }, [habit]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [habit?.id]);
 
   // 타이머 동작 (setRemaining만 호출, complete는 별도 effect에서)
   useEffect(() => {
@@ -73,7 +74,7 @@ export function HabitTimerScreen({ route, navigation }: Props) {
     };
   }, [running, completed]);
 
-  // remaining===0 감지 → 완료 처리 (안티패턴 회피)
+  // remaining===0 감지 → 완료 처리 — habit.id만 의존 (reference 변경에 재실행 안 됨)
   useEffect(() => {
     if (remaining === 0 && !completedRef.current && habit) {
       completedRef.current = true;
@@ -87,7 +88,8 @@ export function HabitTimerScreen({ route, navigation }: Props) {
         navigation.goBack();
       }, 2000);
     }
-  }, [remaining, habit, toggleHabitCompletion, navigation]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [remaining, habit?.id, toggleHabitCompletion, navigation]);
 
   const handleManualComplete = () => {
     if (!habit || completedRef.current) return;

@@ -97,28 +97,52 @@ export function DiaryWriteScreen({ navigation }: any) {
       { text: '확인', onPress: () => navigation.goBack() },
     ]);
 
-    // 감정 분석 결과 저장:
-    // 1) 텍스트 있으면 KoELECTRA + 키워드 분석 시도
-    // 2) 분석 결과가 비거나 텍스트 없어도 → 사용자 버튼 입력(selectedEmotions)으로 fallback
-    const ensureAnalysis = async () => {
-      let scores: Record<string, number> = {};
+    // 감정 분석 결과 저장 — 텍스트 분석 + 버튼 입력 가중 결합 (text 70% + buttons 30%)
+    //   - 텍스트만 있으면 텍스트 결과 그대로
+    //   - 버튼만 있으면 버튼 균등 분포 그대로
+    //   - 둘 다 있으면 정규화 합산 (텍스트 0.7, 버튼 0.3)
+    //   - 둘 다 없으면 저장 안 함
+    const TEXT_WEIGHT = 0.7;
+    const BUTTON_WEIGHT = 0.3;
 
+    const ensureAnalysis = async () => {
+      let textScores: Record<string, number> = {};
       if (text) {
         try {
           const res = await api.post('/api/v1/emotion/analyze', { text });
-          scores = res.data?.scores || {};
+          textScores = res.data?.scores || {};
         } catch {
-          // 호출 실패 → 아래 fallback 사용
+          // 호출 실패 → textScores 비워둠
         }
       }
 
-      // 분석 결과 비었으면 버튼 입력으로 synthetic distribution 생성
-      if (Object.keys(scores).length === 0 && selectedEmotions.length > 0) {
+      let buttonScores: Record<string, number> = {};
+      if (selectedEmotions.length > 0) {
         const w = 1 / selectedEmotions.length;
-        for (const e of selectedEmotions) scores[e] = w;
+        for (const e of selectedEmotions) buttonScores[e] = w;
       }
 
-      if (Object.keys(scores).length === 0) return;   // 정말 아무 정보도 없음
+      const hasText = Object.keys(textScores).length > 0;
+      const hasButtons = Object.keys(buttonScores).length > 0;
+
+      let scores: Record<string, number> = {};
+      if (hasText && hasButtons) {
+        const allKeys = new Set([
+          ...Object.keys(textScores),
+          ...Object.keys(buttonScores),
+        ]);
+        for (const k of allKeys) {
+          scores[k] =
+            (textScores[k] || 0) * TEXT_WEIGHT +
+            (buttonScores[k] || 0) * BUTTON_WEIGHT;
+        }
+      } else if (hasText) {
+        scores = textScores;
+      } else if (hasButtons) {
+        scores = buttonScores;
+      } else {
+        return;   // 정말 아무 정보도 없음
+      }
 
       const sorted = Object.entries(scores).sort((a, b) => b[1] - a[1]);
       updateDiaryEntry(newId, {
