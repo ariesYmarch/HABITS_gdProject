@@ -20,6 +20,7 @@
 - **Self-Discovery** — 36개 해시태그 기반 성격 테스트로 '현재의 나' ↔ '이상적인 나' 격차 파악
 - **Context-Aware Recommendation** — 사용자가 입력한 일주일 스케줄을 기반으로 Gemini가 습관별 최적 시간대 자동 매핑
 - **Emotion-Aware Feedback** — KoELECTRA 8-class 감정 분류 + 한국어 키워드 사전으로 일기 분석, 행동/감정 교차 진단을 주·월간 리포트로 제공
+- **Mood × Habit Insight** — 누적된 일기 mood_score와 습관 로그를 교차 분석해 "컨디션과 함께 가는 습관" / "회복 루틴" 자동 도출
 - **Closed Feedback Loop** — 리포트 만족도 평가 → 다음 리포트 톤/Gemini 호출 분기에 자동 반영
 
 ---
@@ -39,7 +40,6 @@
 | **Auth** | JWT (HS256, access 15분 + refresh 7일) + bcrypt cost 12 | refresh race-lock 적용 |
 | **AI #1** | **KoELECTRA** (`monologg/koelectra-base-v3-discriminator`, HF Inference API) | 8-class 감정 분류 (AI Hub 감성 대화 말뭉치 파인튜닝) |
 | **AI #2** | **Gemini 2.5 Flash** | 시계열 메타 인사이트 + 추천 이유 개인화 + 일정 기반 time_slot 배정 |
-| **AI #3** | **Recombee** (협업 필터링) | 사용자×습관 행렬 학습 |
 | **Mail** | Resend API | 비밀번호 재설정 |
 
 ---
@@ -64,8 +64,6 @@ graph TD
         Server -->|이전 N개 리포트 + 추천 컨텍스트| Gemini[Gemini 2.5 Flash]
         Gemini -->|메타 인사이트 / 추천 이유| Server
 
-        Server -->|view/bookmark/purchase/rating| Recombee[Recombee Cloud]
-        Recombee -->|Recommend Items| Server
     end
 
     subgraph "Data Layer"
@@ -85,13 +83,16 @@ graph TD
 ### 2. AI 리포트 — 결정적 매트릭스 + Gemini 하이브리드
 LLM 환각 위험을 피하기 위해 **결정적 진단을 먼저**, **풍부화만 LLM에** 위임. 이행률 5구간(very_low~very_high) × 감정 4구간(positive/negative/mixed/no_data) = **20셀 매트릭스**가 라벨·줄글·키워드를 결정. Gemini는 (a) 최근 3+ 리포트를 보고 **시계열 패턴 인사이트** 1문단 생성, (b) **추천 행동 이유**를 사용자 데이터 인용해 개인화. 사용자가 "아쉬워요" 평가 + 사유를 남기면 **다음 리포트 Gemini 호출의 satisfaction hint**에 직접 인용되어 폐쇄 루프 완성.
 
-### 3. Context-Aware Habit Recommendation (Onboarding)
-사용자가 온보딩에서 선택한 **해시태그**와 입력한 **일주일 일정(7×24 그리드)**을 결합해 Gemini가 후보 템플릿 중 N개를 골라 각 습관에 최적 `time_slot`(morning/commute/lunch/afternoon/evening/bedtime/anytime)을 자동 배정. 7×24 그리드는 요일별 자유 시간 범위로 압축 전송. JSON 응답 강제(`responseMimeType`)로 파싱 안정성 확보.
+### 3. Mood × Habit Correlation Insights
+최근 60일 일기의 `mood_score`를 33/66 분위로 나눠 "기분 좋은 날" vs "기분 무거운 날" 그룹을 만들고, 활성 습관별 이행률 차이가 **25%p 이상**인 케이스만 인사이트 후보로 추출. 차이 방향에 따라 `high_better`(컨디션과 함께 가는 습관) / `low_better`(어려운 시기 회복 루틴)로 해석해 리포트 본문에 1~2문장 자연어로 삽입. 데이터 부족(<10일 일기 or 그룹당 <3일) 시 자동 스킵.
 
-### 4. Local-First Sync with LWW
+### 4. Context-Aware Habit Recommendation (Onboarding + Report)
+온보딩에서는 사용자가 선택한 **해시태그**와 입력한 **일주일 일정(7×24 그리드)**을 결합해 Gemini가 후보 템플릿 중 N개를 골라 각 습관에 최적 `time_slot`(morning/commute/lunch/afternoon/evening/bedtime/anytime)을 자동 배정. 7×24 그리드는 요일별 자유 시간 범위로 압축 전송, JSON 응답 강제(`responseMimeType`)로 파싱 안정성 확보. 리포트의 "휴식 습관 추가" 추천은 mindset 카테고리 + 휴식/여가 컨텍스트 템플릿만 필터링해 노출.
+
+### 5. Local-First Sync with LWW
 오프라인에서도 즉시 저장되도록 zustand+AsyncStorage가 1차 저장소. 모든 sync target에 `client_id` UUID + `updated_at` + `deleted_at`(tombstone) 필드. 충돌은 **Last-Write-Wins** 알고리즘으로 결정적 해결. 5초 debounce push + 포그라운드 진입 시 `since=lastSyncedAt` pull.
 
-### 5. Security
+### 6. Security
 - **JWT**: HS256 + payload `type` 필드(access/refresh/reset)로 토큰 위조 방어, refresh 동시 401 처리는 single shared promise로 race lock
 - **bcrypt**: cost 12 (256ms/hash)
 - **Supabase RLS**: 모든 `public.*` 테이블 RLS 활성화 + `REVOKE ALL ... FROM anon, authenticated, public` + DEFAULT PRIVILEGES 회수로 PostgREST 노출 0
@@ -120,8 +121,6 @@ cp .env.example .env   # 없으면 직접 만들기, 아래 항목 참고
 # GEMINI_API_KEY=AIza...
 # HF_API_TOKEN=hf_...
 # HF_MODEL_REPO=monologg/koelectra-base-v3-discriminator
-# RECOMBEE_DB_ID=...
-# RECOMBEE_API_TOKEN=...  # Private Token
 # RESEND_API_KEY=re_...
 
 alembic upgrade head        # DB 마이그레이션
@@ -151,7 +150,7 @@ npx react-native run-android
 HABITS_gdProject
 ├── backend
 │   ├── app
-│   │   ├── analytics/        # 기간 집계 + 데이터 충분성 체크
+│   │   ├── analytics/        # 기간 집계 + 데이터 충분성 체크 + mood×habit 상관분석
 │   │   ├── auth/             # JWT, bcrypt, dependencies
 │   │   ├── core/             # config, database, emotion(HF client)
 │   │   ├── feedback/         # 5×4 진단 매트릭스, narrative, satisfaction, keywords
@@ -159,7 +158,7 @@ HABITS_gdProject
 │   │   ├── ml/               # KoELECTRA 평가 utils
 │   │   ├── models/           # SQLAlchemy 10 테이블
 │   │   ├── routers/          # auth/habits/diary/sync/reports/feedback/recommendations/jitai
-│   │   ├── services/         # gemini, recombee, scheduler, report_generator
+│   │   ├── services/         # gemini, scheduler, report_generator, email
 │   │   ├── sync/             # Local-First LWW sync
 │   │   └── main.py
 │   ├── alembic/              # DB 마이그레이션
@@ -193,7 +192,7 @@ HABITS_gdProject
     - [x] React Native 앱(인증, 온보딩 10단계, 홈, 일기, 리포트, 마이페이지, 타이머)
     - [x] KoELECTRA + 키워드 사전 감정 분석 파이프라인
     - [x] Gemini 2.5 Flash 통합(메타 인사이트, 추천 이유 개인화, 일정 기반 추천)
-    - [x] Recombee 협업 필터링 연동
+    - [x] Mood × Habit 상관분석 (최근 60일, 33/66 분위 그룹, 25%p 임계치)
     - [x] APScheduler 자동 리포트(일요일 22시 KST / 월말 22시)
     - [x] Local-First 동기화 (5초 debounce push, LWW conflict resolution)
 
