@@ -34,24 +34,12 @@ import {
   type PersonalizedRecommendation,
 } from '../../services/habitRecommendation';
 import { ActivityIndicator } from 'react-native';
-import { Sunrise, Train, Utensils, Sun, Sunset, Moon } from 'lucide-react-native';
-
-type _LucideIcon = React.ComponentType<{ size?: number; color?: string; strokeWidth?: number }>;
+import { CategoryIcon } from '../../components/common/CategoryIcon';
 
 type Props = NativeStackScreenProps<
   OnboardingStackParamList,
   'HabitRecommendation'
 >;
-
-// 시간대별 픽토그램 (lucide-react-native)
-const TIME_PERIODS: { id: string; Icon: _LucideIcon; label: string }[] = [
-  { id: 'morning', Icon: Sunrise, label: '아침' },
-  { id: 'commute', Icon: Train, label: '통근' },
-  { id: 'lunch', Icon: Utensils, label: '점심' },
-  { id: 'afternoon', Icon: Sun, label: '오후' },
-  { id: 'evening', Icon: Sunset, label: '저녁' },
-  { id: 'bedtime', Icon: Moon, label: '취침 전' },
-];
 
 // 사용자가 입력한 일정 블록 타입(TimetableSlotType) → 어울리는 습관의 category/contexts
 const SLOT_TO_HABIT: Record<string, { categories: string[]; contexts: string[] }> = {
@@ -125,7 +113,6 @@ export function HabitRecommendationStep({ navigation }: Props) {
   const addHabit = useAppStore((s) => s.addHabit);
   const completeOnboarding = useAppStore((s) => s.completeOnboarding);
 
-  const [activeTimePeriod, setActiveTimePeriod] = useState<TimeSlot>('morning');
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [showCompletion, setShowCompletion] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -202,13 +189,7 @@ export function HabitRecommendationStep({ navigation }: Props) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // time_slot 기준 필터
-  const filteredRecs = useMemo(() => {
-    // anytime은 모든 탭에 보여줘서 사용자가 발견할 수 있게
-    return geminiRecs.filter(
-      (r) => r.time_slot === activeTimePeriod || r.time_slot === 'anytime',
-    );
-  }, [geminiRecs, activeTimePeriod]);
+  const filteredRecs = geminiRecs;
 
   const handleToggle = useCallback((id: number) => {
     setSelectedIds((prev) => {
@@ -261,53 +242,9 @@ export function HabitRecommendationStep({ navigation }: Props) {
           {userName}님을 위한 습관 {'\uD83D\uDD11'}
         </Text>
         <Text style={[styles.subtitle, { color: theme.textSecondary }]}>
-          시간대를 선택해서 습관을 추천받으세요
+          일정과 성향에 맞춰 분석된 추천 습관이에요
         </Text>
       </View>
-
-      {/* Time Period Buttons — Swift style circular buttons */}
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.timePeriodScroll}
-        contentContainerStyle={styles.timePeriodContent}>
-        {TIME_PERIODS.map((period) => {
-          const isActive = period.id === activeTimePeriod;
-          const Icon = period.Icon;
-          return (
-            <TouchableOpacity
-              key={period.id}
-              style={styles.timePeriodItem}
-              onPress={() => setActiveTimePeriod(period.id as TimeSlot)}
-              activeOpacity={0.7}>
-              <View
-                style={[
-                  styles.timePeriodCircle,
-                  isActive && {
-                    backgroundColor: theme.primaryColor + '20',
-                    borderColor: theme.primaryColor,
-                  },
-                ]}>
-                <Icon
-                  size={26}
-                  color={isActive ? theme.primaryColor : theme.textSecondary}
-                  strokeWidth={1.8}
-                />
-              </View>
-              <Text
-                style={[
-                  styles.timePeriodLabel,
-                  {
-                    color: isActive ? theme.primaryColor : theme.textSecondary,
-                    fontWeight: isActive ? '700' : '400',
-                  },
-                ]}>
-                {period.label}
-              </Text>
-            </TouchableOpacity>
-          );
-        })}
-      </ScrollView>
 
       {/* Template List */}
       <ScrollView
@@ -324,7 +261,7 @@ export function HabitRecommendationStep({ navigation }: Props) {
         ) : filteredRecs.length === 0 ? (
           <View style={styles.emptyState}>
             <Text style={[styles.emptyText, { color: theme.textSecondary }]}>
-              이 시간대에 맞는 추천 습관이 없어요
+              조건에 맞는 추천 습관이 없어요
             </Text>
           </View>
         ) : (
@@ -355,7 +292,9 @@ export function HabitRecommendationStep({ navigation }: Props) {
                       <Text style={styles.checkIcon}>{'✓'}</Text>
                     )}
                   </View>
-                  <Text style={styles.templateEmoji}>{rec.emoji}</Text>
+                  <View style={styles.templateEmoji}>
+                    <CategoryIcon emoji={rec.emoji} size={22} color={theme.primaryColor} />
+                  </View>
                   <View style={styles.templateInfo}>
                     <Text
                       style={[
@@ -433,36 +372,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     lineHeight: 20,
   },
-  timePeriodScroll: {
-    maxHeight: 100,
-    marginTop: 16,
-  },
-  timePeriodContent: {
-    paddingHorizontal: 20,
-    gap: 12,
-  },
-  timePeriodItem: {
-    alignItems: 'center',
-    width: 64,
-  },
-  timePeriodCircle: {
-    width: 56,
-    height: 56,
-    borderRadius: 28,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#F3F4F6',
-    borderWidth: 2,
-    borderColor: 'transparent',
-    marginBottom: 6,
-  },
-  timePeriodEmoji: {
-    fontSize: 24,
-  },
-  timePeriodLabel: {
-    fontSize: 12,
-    textAlign: 'center',
-  },
   listScroll: {
     flex: 1,
     marginTop: 8,
@@ -506,8 +415,9 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   templateEmoji: {
-    fontSize: 28,
     marginRight: 12,
+    width: 28,
+    alignItems: 'center',
   },
   templateInfo: {
     flex: 1,

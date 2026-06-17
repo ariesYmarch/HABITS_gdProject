@@ -103,7 +103,7 @@ export function EmotionTab({ startDate, endDate }: EmotionTabProps) {
 
   const stats = useMemo(() => {
     const dates = getDatesBetween(startDate, endDate);
-    const entries = diaryEntries.filter((e) => dates.includes(e.date));
+    const entries = diaryEntries.filter((e) => !e.deletedAt && dates.includes(e.date));
 
     // Average mood score
     const avgMood =

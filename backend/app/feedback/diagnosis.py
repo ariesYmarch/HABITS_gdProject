@@ -17,6 +17,7 @@ from typing import Literal, Optional
 from app.feedback.constants import (
     COMBO_EMOTION_THRESHOLD,
     EMOTION_LABELS,
+    EMOTION_TIE_MARGIN,
     NEGATIVE_EMOTIONS,
     POSITIVE_EMOTIONS,
 )
@@ -37,6 +38,7 @@ class PeriodCategory:
     valence: Valence
     primary_emotion: Optional[str] = None        # top1 감정 (영어 키)
     secondary_emotion: Optional[str] = None      # top2 (>=COMBO_THRESHOLD)
+    emotions_tied: bool = False                  # top1↔top2가 EMOTION_TIE_MARGIN 이내 (사실상 동률)
     mood_bucket: MoodBucket = "unknown"
     variance_bucket: VarianceBucket = "unknown"
     trend: TrendKind = "unknown"                 # 이전 리포트 대비
@@ -87,13 +89,14 @@ def _classify_valence(distribution: dict[str, float]) -> Valence:
     return "positive_dominant" if pos > neg else "negative_dominant"
 
 
-def _top_emotions(distribution: dict[str, float]) -> tuple[Optional[str], Optional[str]]:
+def _top_emotions(distribution: dict[str, float]) -> tuple[Optional[str], Optional[str], bool]:
     if not distribution:
-        return None, None
+        return None, None, False
     sorted_e = sorted(distribution.items(), key=lambda x: x[1], reverse=True)
     top1 = sorted_e[0][0]
     top2 = sorted_e[1][0] if len(sorted_e) > 1 and sorted_e[1][1] >= COMBO_EMOTION_THRESHOLD else None
-    return top1, top2
+    tied = bool(top2 and (sorted_e[0][1] - sorted_e[1][1]) <= EMOTION_TIE_MARGIN)
+    return top1, top2, tied
 
 
 def _classify_trend(current_rate: float, previous_rate: Optional[float]) -> TrendKind:
@@ -111,13 +114,14 @@ def categorize_period_data(
     mood_stdev: Optional[float],
     previous_completion_rate: Optional[float] = None,
 ) -> PeriodCategory:
-    primary, secondary = _top_emotions(emotion_distribution or {})
+    primary, secondary, tied = _top_emotions(emotion_distribution or {})
     return PeriodCategory(
         rate_bucket=_bucket_rate(completion_rate),
         rate_pct=round(completion_rate * 100),
         valence=_classify_valence(emotion_distribution or {}),
         primary_emotion=primary,
         secondary_emotion=secondary,
+        emotions_tied=tied,
         mood_bucket=_bucket_mood(avg_mood),
         variance_bucket=_bucket_variance(mood_stdev),
         trend=_classify_trend(completion_rate, previous_completion_rate),
@@ -408,6 +412,11 @@ def _build_static_diagnosis(
         emo_kr = _emotion_kr(cat.primary_emotion)
         if emo_kr and emo_kr not in keywords:
             keywords.append(emo_kr)
+    # top1↔top2가 사실상 동률이면 secondary도 같이 키워드에 노출
+    if cat.emotions_tied and cat.secondary_emotion:
+        sec_kr = _emotion_kr(cat.secondary_emotion)
+        if sec_kr and sec_kr not in keywords:
+            keywords.append(sec_kr)
     if cat.trend == "improving":
         keywords.append("개선 추세")
     elif cat.trend == "declining":

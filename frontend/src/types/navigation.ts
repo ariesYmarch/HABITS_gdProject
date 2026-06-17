@@ -32,7 +32,7 @@ export type MainStackParamList = {
   FeedbackSummary: undefined;
   MyPage: undefined;
   Report: undefined;
-  HabitTimer: { habitId: string };
+  HabitTimer: { habitId: string; dateOverride?: string };
 };
 
 // Keep for backwards compatibility

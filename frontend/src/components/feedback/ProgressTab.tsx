@@ -4,6 +4,7 @@ import Svg, { Circle } from 'react-native-svg';
 import { useAppStore } from '../../store';
 import { themes } from '../../theme/themes';
 import type { Habit, HabitFrequency } from '../../types/habit';
+import { CategoryIcon } from '../common/CategoryIcon';
 
 interface ProgressTabProps {
   startDate: string;
@@ -102,6 +103,7 @@ export function ProgressTab({ startDate, endDate }: ProgressTabProps) {
   const themeId = useAppStore((s) => s.selectedTheme);
   const theme = themes[themeId];
   const habits = useAppStore((s) => s.habits);
+  const selectedHashtags = useAppStore((s) => s.selectedHashtags);
 
   const stats = useMemo(() => {
     const dates = getDatesBetween(startDate, endDate);
@@ -140,7 +142,8 @@ export function ProgressTab({ startDate, endDate }: ProgressTabProps) {
       });
     });
 
-    // By hashtag
+    // By hashtag — 사용자가 선택한 해시태그(이상적 자아 태그)만 집계
+    const userTagSet = new Set(selectedHashtags);
     const tagMap: Record<string, { expected: number; completed: number }> = {};
     activeHabits.forEach((habit) => {
       let expected = 0;
@@ -153,6 +156,7 @@ export function ProgressTab({ startDate, endDate }: ProgressTabProps) {
         }
       });
       habit.hashtags.forEach((tag) => {
+        if (!userTagSet.has(tag)) return;
         if (!tagMap[tag]) tagMap[tag] = { expected: 0, completed: 0 };
         tagMap[tag].expected += expected;
         tagMap[tag].completed += completed;
@@ -177,7 +181,7 @@ export function ProgressTab({ startDate, endDate }: ProgressTabProps) {
       habitStats: habitStats.sort((a, b) => b.rate - a.rate),
       tagStats,
     };
-  }, [habits, startDate, endDate]);
+  }, [habits, selectedHashtags, startDate, endDate]);
 
   return (
     <ScrollView
@@ -265,7 +269,7 @@ export function ProgressTab({ startDate, endDate }: ProgressTabProps) {
           </Text>
           {stats.habitStats.map(({ habit, completed, expected, rate }) => (
             <View key={habit.id} style={styles.habitRow}>
-              <Text style={styles.habitEmoji}>{habit.emoji}</Text>
+              <CategoryIcon emoji={habit.emoji} size={22} color={theme.primaryColor} />
               <View style={styles.habitInfo}>
                 <Text
                   style={[styles.habitTitle, { color: theme.textPrimary }]}

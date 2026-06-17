@@ -20,6 +20,7 @@ import { getUnreadCount } from '../../services/reports';
 import { schedulePush } from '../../services/sync';
 import { Sunrise, Train, Utensils, Sun, Sunset, Moon, Clock, Check, Undo2, Pencil, BarChart3 } from 'lucide-react-native';
 import { Swipeable } from 'react-native-gesture-handler';
+import { CategoryIcon } from '../../components/common/CategoryIcon';
 
 type CalendarViewMode = 'week' | 'month';
 
@@ -245,7 +246,6 @@ export function HomeScreen({ navigation }: any) {
     const ds = fmtDate(selectedDate);
     const done = !!habit.completionHistory[ds];
     const isToday_ = isToday(selectedDate);
-    const isFuture = startOfDay(selectedDate).getTime() > startOfDay(new Date()).getTime();
 
     const rowInner = (
       <View key={habit.id} style={s.habitRow}>
@@ -255,7 +255,7 @@ export function HomeScreen({ navigation }: any) {
           onPress={() => setDurationEditTarget(habit)}
           activeOpacity={0.7}
         >
-          <Text style={s.habitEmoji}>{habit.emoji}</Text>
+          <CategoryIcon emoji={habit.emoji} size={26} color={done ? '#C8CDD5' : theme.primaryColor} />
           <View style={s.habitInfo}>
             <Text
               style={[
@@ -279,8 +279,7 @@ export function HomeScreen({ navigation }: any) {
         {/* 우측 버튼:
             - 완료: ✓ (토글)
             - 오늘 미완료: ▶ → 타이머 진입
-            - 과거 미완료: ○ (토글)
-            - 미래 미완료: ▶ (비활성, 시각만)
+            - 과거/미래 미완료: ○ (즉시 토글) — 미래 날짜도 미리 체크 가능
         */}
         {done ? (
           <TouchableOpacity onPress={() => toggleHabit(habit.id)} activeOpacity={0.7}>
@@ -301,12 +300,6 @@ export function HomeScreen({ navigation }: any) {
               </LinearGradient>
             </View>
           </TouchableOpacity>
-        ) : isFuture ? (
-          <View style={[s.playClip, { opacity: 0.4 }]}>
-            <LinearGradient colors={softGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.playGrad}>
-              <Text style={s.playMark}>▶</Text>
-            </LinearGradient>
-          </View>
         ) : (
           <TouchableOpacity onPress={() => toggleHabit(habit.id)} activeOpacity={0.7}>
             <View style={s.playClip}>
@@ -318,9 +311,6 @@ export function HomeScreen({ navigation }: any) {
         )}
       </View>
     );
-
-    // 미래 날짜는 swipe 비활성 (마킹 불가)
-    if (isFuture) return rowInner;
 
     return (
       <Swipeable

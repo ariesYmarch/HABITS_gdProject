@@ -9,6 +9,7 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import { MainStackParamList } from '../../types/navigation';
 import { useAppStore } from '../../store';
 import { themes } from '../../theme/themes';
+import { CategoryIcon } from '../../components/common/CategoryIcon';
 
 type Props = NativeStackScreenProps<MainStackParamList, 'HabitTimer'>;
 
@@ -36,6 +37,8 @@ export function HabitTimerScreen({ route, navigation }: Props) {
   const toggleHabitCompletion = useAppStore((s) => s.toggleHabitCompletion);
 
   const habit = habits.find((h) => h.id === route.params.habitId);
+  // dateOverride가 있으면 그 날짜에 체크 (미래 재생 모드). 없으면 오늘.
+  const targetDate = route.params.dateOverride || fmtDate(new Date());
   const totalSeconds = (habit?.duration || 15) * 60;
 
   const [remaining, setRemaining] = useState(totalSeconds);
@@ -82,7 +85,7 @@ export function HabitTimerScreen({ route, navigation }: Props) {
       setRunning(false);
       // 완료 체크는 next tick으로 (다른 컴포넌트 update 중 setState 회피)
       setTimeout(() => {
-        toggleHabitCompletion(habit.id, fmtDate(new Date()));
+        toggleHabitCompletion(habit.id, targetDate);
       }, 0);
       setTimeout(() => {
         navigation.goBack();
@@ -158,7 +161,10 @@ export function HabitTimerScreen({ route, navigation }: Props) {
           <View style={s.completedBox}>
             <Text style={s.completedMark}>✓</Text>
             <Text style={s.completedText}>완료!</Text>
-            <Text style={s.habitTitle}>{habit.emoji} {habit.title}</Text>
+            <View style={s.habitTitleRow}>
+              <CategoryIcon emoji={habit.emoji} size={22} color="#FFFFFF" />
+              <Text style={s.habitTitle}>{habit.title}</Text>
+            </View>
           </View>
         ) : (
           <>
@@ -201,8 +207,11 @@ export function HabitTimerScreen({ route, navigation }: Props) {
               </View>
             </View>
 
-            {/* 라벨 (링 아래) - 이모지 + 제목 */}
-            <Text style={s.habitTitle}>{habit.emoji} {habit.title}</Text>
+            {/* 라벨 (링 아래) - 아이콘 + 제목 */}
+            <View style={s.habitTitleRow}>
+              <CategoryIcon emoji={habit.emoji} size={22} color="#FFFFFF" />
+              <Text style={s.habitTitle}>{habit.title}</Text>
+            </View>
           </>
         )}
       </View>
@@ -255,7 +264,8 @@ const s = StyleSheet.create({
   },
   timer: { fontSize: 64, fontWeight: '300', color: '#FFF', letterSpacing: 1 },
   totalLabel: { fontSize: 13, color: 'rgba(255,255,255,0.7)', marginTop: 4 },
-  habitTitle: { fontSize: 22, fontWeight: '700', color: '#FFF', textAlign: 'center', marginTop: 28 },
+  habitTitle: { fontSize: 22, fontWeight: '700', color: '#FFF', textAlign: 'center' },
+  habitTitleRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 28 },
   completedBox: { alignItems: 'center' },
   completedMark: { fontSize: 120, color: '#FFF', marginBottom: 8 },
   completedText: { fontSize: 32, fontWeight: '700', color: '#FFF', marginBottom: 16 },

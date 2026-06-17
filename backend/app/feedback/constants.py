@@ -19,6 +19,8 @@ EMOTION_LABELS = {
 SINGLE_EMOTION_THRESHOLD = 0.5
 # 복합 감정 후보로 인정하는 confidence 임계값
 COMBO_EMOTION_THRESHOLD = 0.2
+# 주감정-보조감정 confidence 차이가 이 이내면 사실상 동률로 간주 (tied)
+EMOTION_TIE_MARGIN = 0.05
 
 # 만족도 평가 기반 정책 임계값
 # good=1, neutral=0, bad=-1 평균. 이 값보다 낮으면 "최근 만족도 낮음"으로 판단.

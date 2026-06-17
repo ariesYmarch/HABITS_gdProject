@@ -228,7 +228,10 @@ def _build_report_record(
                 gemini_used = True
 
     # === Gemini 핵심 작업 2: 추천 이유 개인화 ===
-    if narrative.recommendation:
+    # rest_choice는 두 선택지 안내가 메시지 본문에 포함돼 있어 Gemini 풍부화가
+    # 선택 프레이밍을 깨트릴 수 있음. 정적 메시지를 그대로 사용.
+    rec_kind_str = (narrative.recommendation or {}).get("kind", "")
+    if narrative.recommendation and rec_kind_str != "rest_choice":
         rationale = generate_recommendation_rationale(
             rec_kind=narrative.recommendation.get("kind", ""),
             rec_label=narrative.recommendation.get("label", ""),
@@ -238,6 +241,7 @@ def _build_report_record(
             primary_emotion=cat.primary_emotion,
             secondary_emotion=cat.secondary_emotion,
             valence=cat.valence,
+            emotions_tied=cat.emotions_tied,
         )
         if rationale:
             quality = check_gemini_output(rationale)

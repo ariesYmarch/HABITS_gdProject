@@ -98,9 +98,10 @@ export async function pullSync(): Promise<void> {
   // habit_logs와 emotion_analyses를 habit/diary와 합쳐서 로컬 형태로 변환
   const habitLogsByClientId = new Map<string, Record<string, boolean>>();
   for (const log of data.habit_logs) {
-    if (!log.is_completed) continue;
+    // false도 보존 — 서버에서 명시적 uncheck 상태를 받아왔으면 그대로 반영해야
+    // 다른 디바이스에서의 체크 해제가 누락되지 않음.
     const map = habitLogsByClientId.get(log.habit_client_id) || {};
-    map[log.date] = true;
+    map[log.date] = !!log.is_completed;
     habitLogsByClientId.set(log.habit_client_id, map);
   }
 
@@ -183,14 +184,13 @@ export async function pushSync(): Promise<PushResponse> {
   }> = [];
   for (const h of habits) {
     for (const [date, completed] of Object.entries(h.completionHistory)) {
-      if (completed) {
-        logsPayload.push({
-          habit_client_id: h.id,
-          date,
-          is_completed: true,
-          updated_at: h.updatedAt || new Date().toISOString(),
-        });
-      }
+      // true/false 모두 전송 — 체크 해제도 백엔드에 반영되어야 리포트/집계가 정확.
+      logsPayload.push({
+        habit_client_id: h.id,
+        date,
+        is_completed: !!completed,
+        updated_at: h.updatedAt || new Date().toISOString(),
+      });
     }
   }
 

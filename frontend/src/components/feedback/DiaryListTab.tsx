@@ -103,7 +103,7 @@ export function DiaryListTab({ startDate, endDate }: DiaryListTabProps) {
 
   const filteredEntries = useMemo(() => {
     return diaryEntries
-      .filter((e) => e.date >= startDate && e.date <= endDate)
+      .filter((e) => !e.deletedAt && e.date >= startDate && e.date <= endDate)
       .sort((a, b) => b.date.localeCompare(a.date));
   }, [diaryEntries, startDate, endDate]);
 

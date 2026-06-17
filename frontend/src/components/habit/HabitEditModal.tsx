@@ -8,6 +8,7 @@ import { themes } from '../../theme/themes';
 import type { Habit, HabitFrequency, TimeSlot } from '../../types/habit';
 import { schedulePush } from '../../services/sync';
 import { Sunrise, Train, Utensils, Sun, Sunset, Moon, Clock } from 'lucide-react-native';
+import { CategoryIcon } from '../common/CategoryIcon';
 
 type _LucideIcon = React.ComponentType<{ size?: number; color?: string }>;
 
@@ -112,7 +113,7 @@ export function HabitEditModal({ visible, habit, recommendation, onClose, onSave
 
             {/* 대상 습관 */}
             <View style={s.targetBox}>
-              <Text style={s.targetEmoji}>{habit.emoji}</Text>
+              <CategoryIcon emoji={habit.emoji} size={28} color={theme.primaryColor} />
               <Text style={[s.targetTitle, { color: theme.textPrimary }]}>{habit.title}</Text>
             </View>
 

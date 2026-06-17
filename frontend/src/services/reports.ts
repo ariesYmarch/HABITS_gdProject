@@ -1,10 +1,11 @@
 import api from './api';
 
 export interface ReportRecommendation {
-  kind: 'reduce_frequency' | 'increase_frequency' | 'add_habit' | 'rest' | string;
+  kind: 'reduce_frequency' | 'increase_frequency' | 'rest_choice' | string;
   label: string;
   message: string;
   habit_id?: string;  // habit의 client_id (프론트 habits 배열 매칭용)
+  options?: { action: 'add_rest' | 'swap_habit'; label: string }[];
 }
 
 export interface ReportItem {

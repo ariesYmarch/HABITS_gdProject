@@ -19,10 +19,11 @@ import { EMOTIONS } from '../../types/diary';
 import { GraduationCandidate, listGraduationCandidates, graduateHabit } from '../../services/habits';
 import { FeedbackResponse, getWeeklyFeedback } from '../../services/feedback';
 import { HabitEditModal } from '../../components/habit/HabitEditModal';
+import { CategoryIcon } from '../../components/common/CategoryIcon';
 import type { Habit, HabitFrequency, TimeSlot } from '../../types/habit';
 import { pushSync } from '../../services/sync';
 import { findPersonalityType } from '../../data/personalityTypes';
-import { recommendTemplates } from '../../data/habitTemplates';
+import { recommendTemplates, HABIT_TEMPLATES } from '../../data/habitTemplates';
 import type { HabitTemplateItem } from '../../types/habit';
 
 type Tab = 'week' | 'month';
@@ -610,7 +611,10 @@ function ReportDetailModal({ report, theme, onClose, onRate }: ModalProps) {
   const [editTarget, setEditTarget] = useState<Habit | null>(null);
   const [showAddHabit, setShowAddHabit] = useState(false);
   const [addHabitMode, setAddHabitMode] = useState<'default' | 'rest'>('default');
+  const [showRestChoice, setShowRestChoice] = useState(false);
+  const [pendingSwapHabitId, setPendingSwapHabitId] = useState<string | null>(null);
   const habits = useAppStore((s) => s.habits);
+  const deactivateHabit = useAppStore((s) => s.deactivateHabit);
 
   if (!report) return null;
   const ratePct = Math.round(report.completion_rate * 100);
@@ -630,17 +634,9 @@ function ReportDetailModal({ report, theme, onClose, onRate }: ModalProps) {
     const rec = report.recommendation;
     if (!rec) return;
 
-    // add_habit 추천: 종류·빈도·시간대·소요시간 새 습관 추가 모달
-    if (rec.kind === 'add_habit') {
-      setAddHabitMode('default');
-      setShowAddHabit(true);
-      return;
-    }
-
-    // rest 추천: 휴식·마음챙김 관련 새 습관 제안 (별도 필터)
-    if (rec.kind === 'rest') {
-      setAddHabitMode('rest');
-      setShowAddHabit(true);
+    // rest_choice: 사용자에게 두 갈래(휴식 추가 / 기존 습관 변경) 선택 받기
+    if (rec.kind === 'rest_choice') {
+      setShowRestChoice(true);
       return;
     }
 
@@ -662,6 +658,32 @@ function ReportDetailModal({ report, theme, onClose, onRate }: ModalProps) {
     setEditTarget(target);
   };
 
+  const handleRestChoice = (action: 'add_rest' | 'swap_habit') => {
+    setShowRestChoice(false);
+    const rec = report.recommendation;
+    if (!rec) return;
+
+    if (action === 'add_rest') {
+      // 휴식 습관 추가 — 기존 습관 유지하면서 회복 루틴 보강
+      setAddHabitMode('rest');
+      setShowAddHabit(true);
+      return;
+    }
+
+    // swap_habit — 대상 습관을 deactivate 후 새 습관 선택 모달 (전체 템플릿)
+    const targetId = rec.habit_id
+      || habits.find((h) => h.isActive && !h.deletedAt)?.id
+      || null;
+    if (!targetId) {
+      showAlert({ title: '알림', message: '변경할 활성 습관이 없어요.' });
+      setAccepted(true);
+      return;
+    }
+    setPendingSwapHabitId(targetId);
+    setAddHabitMode('default');
+    setShowAddHabit(true);
+  };
+
   const handleEditSaved = () => {
     setAccepted(true);
     setEditTarget(null);
@@ -671,7 +693,22 @@ function ReportDetailModal({ report, theme, onClose, onRate }: ModalProps) {
   const handleAddHabitSaved = () => {
     setAccepted(true);
     setShowAddHabit(false);
-    showAlert({ title: '추가 완료', message: '새 습관이 추가됐어요. 다음 리포트에 반영됩니다.' });
+    const isSwap = !!pendingSwapHabitId;
+    if (isSwap) {
+      deactivateHabit(pendingSwapHabitId!);
+      setPendingSwapHabitId(null);
+    }
+    // 모달 close 애니메이션이 끝난 뒤 alert 표시 — iOS에서 nested Modal 닫기와
+    // 새 Modal 띄우기가 동시에 일어나면 UI thread가 한순간 멈춰서 close 버튼이
+    // 안 먹는 것처럼 보임. 250ms 지연으로 회피.
+    setTimeout(() => {
+      showAlert({
+        title: isSwap ? '변경 완료' : '추가 완료',
+        message: isSwap
+          ? '기존 습관을 비활성화하고 새 습관을 추가했어요. 다음 리포트에 반영됩니다.'
+          : '새 습관이 추가됐어요. 다음 리포트에 반영됩니다.',
+      });
+    }, 250);
   };
 
   return (
@@ -846,7 +883,7 @@ function ReportDetailModal({ report, theme, onClose, onRate }: ModalProps) {
         onSaved={handleEditSaved}
       />
 
-      {/* add_habit / rest 추천 시 띄우는 새 습관 추가 모달 (mode에 따라 필터 다름) */}
+      {/* rest_choice 추천: 새 습관 추가 모달 — 'rest' 모드는 휴식·마음챙김 필터, 'default'는 swap 흐름의 전체 템플릿 */}
       <AddHabitFromReportModal
         visible={showAddHabit}
         theme={theme}
@@ -854,6 +891,36 @@ function ReportDetailModal({ report, theme, onClose, onRate }: ModalProps) {
         onClose={() => setShowAddHabit(false)}
         onSaved={handleAddHabitSaved}
       />
+
+      {/* rest_choice 선택 모달: 휴식 추가 vs 기존 습관 변경 */}
+      <Modal visible={showRestChoice} animationType="fade" transparent onRequestClose={() => setShowRestChoice(false)}>
+        <View style={[s.modalOverlay, { justifyContent: 'center' }]}>
+          <View style={[s.choiceCard, { backgroundColor: theme.backgroundColor }]}>
+            <Text style={[s.choiceTitle, { color: theme.textPrimary }]}>어떻게 도와드릴까요?</Text>
+            <Text style={[s.choiceDesc, { color: theme.textSecondary }]}>
+              잘 해내고 있지만 마음이 지쳐있는 시기예요. 하나를 골라주세요.
+            </Text>
+            <TouchableOpacity
+              onPress={() => handleRestChoice('add_rest')}
+              style={[s.choiceBtn, { backgroundColor: theme.primaryColor }]}
+            >
+              <Text style={s.choiceBtnText}>휴식 습관 추가하기</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => handleRestChoice('swap_habit')}
+              style={[s.choiceBtn, { backgroundColor: theme.primaryColor + 'B3', marginTop: 8 }]}
+            >
+              <Text style={s.choiceBtnText}>이 습관을 다른 습관으로 변경</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              onPress={() => setShowRestChoice(false)}
+              style={{ marginTop: 12, alignSelf: 'center' }}
+            >
+              <Text style={{ color: theme.textSecondary, fontSize: 14 }}>나중에 결정할게요</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </Modal>
   );
 }
@@ -909,12 +976,12 @@ function AddHabitFromReportModal({ visible, theme, mode = 'default', onClose, on
       );
       // 해시태그 매칭이 부족하면 전체 mindset/rest 풀로 보강
       if (pool.length < 5) {
-        const HABIT_TEMPLATES = require('../../data/habitTemplates').HABIT_TEMPLATES;
-        const extra = (HABIT_TEMPLATES as HabitTemplateItem[]).filter(
+        const poolIds = new Set(pool.map((p) => p.id));
+        const extra = HABIT_TEMPLATES.filter(
           (t) =>
-            !pool.find((p) => p.id === t.id) &&
+            !poolIds.has(t.id) &&
             (t.category === 'mindset' ||
-              (t.contexts || []).some((c: any) => c === 'rest' || c === 'leisure')),
+              (t.contexts || []).some((c) => c === 'rest' || c === 'leisure')),
         );
         pool = [...pool, ...extra];
       }
@@ -1005,7 +1072,9 @@ function AddHabitFromReportModal({ visible, theme, mode = 'default', onClose, on
                         activeOpacity={0.7}
                         style={[s.addTemplateCard, { borderColor: theme.primaryColor + '30' }]}
                       >
-                        <Text style={s.addTemplateEmoji}>{t.emoji}</Text>
+                        <View style={s.addTemplateEmoji}>
+                          <CategoryIcon emoji={t.emoji} size={22} color={theme.primaryColor} />
+                        </View>
                         <View style={{ flex: 1 }}>
                           <Text style={[s.addTemplateTitle, { color: theme.textPrimary }]} numberOfLines={1}>
                             {t.title}
@@ -1023,7 +1092,9 @@ function AddHabitFromReportModal({ visible, theme, mode = 'default', onClose, on
             ) : (
               <>
                 <View style={[s.addPickedCard, { backgroundColor: theme.primaryColor + '14' }]}>
-                  <Text style={s.addTemplateEmoji}>{pickedTemplate.emoji}</Text>
+                  <View style={s.addTemplateEmoji}>
+                    <CategoryIcon emoji={pickedTemplate.emoji} size={24} color={theme.primaryColor} />
+                  </View>
                   <Text style={[s.addPickedTitle, { color: theme.textPrimary }]}>
                     {pickedTemplate.title}
                   </Text>
@@ -1177,7 +1248,9 @@ function PeriodBreakdownCard({ report, theme }: PeriodCardProps) {
           rate: completed / expected,
         });
       }
+      // 사용자가 선택한 해시태그만 집계 (성격 테스트로 고른 이상적 자아 태그에 한정)
       (h.hashtags || []).forEach((tag) => {
+        if (!userTagSet.has(tag)) return;
         if (!tagMap[tag]) tagMap[tag] = { expected: 0, completed: 0 };
         tagMap[tag].expected += expected;
         tagMap[tag].completed += completed;
@@ -1416,7 +1489,9 @@ function PostGraduationRecommendModal({
                     activeOpacity={0.7}
                     style={[s.addTemplateCard, { borderColor: theme.primaryColor + '30' }]}
                   >
-                    <Text style={s.addTemplateEmoji}>{t.emoji}</Text>
+                    <View style={s.addTemplateEmoji}>
+                      <CategoryIcon emoji={t.emoji} size={22} color={theme.primaryColor} />
+                    </View>
                     <View style={{ flex: 1 }}>
                       <Text style={[s.addTemplateTitle, { color: theme.textPrimary }]} numberOfLines={1}>
                         {t.title}
@@ -1685,6 +1760,16 @@ const s = StyleSheet.create({
     marginTop: 10, paddingVertical: 10, borderRadius: 8, alignItems: 'center',
   },
   alertBtnText: { color: '#FFFFFF', fontSize: 14, fontWeight: '700' },
+  choiceCard: {
+    marginHorizontal: 24, borderRadius: 16,
+    padding: 24, alignSelf: 'center', width: '85%', maxWidth: 420,
+  },
+  choiceTitle: { fontSize: 18, fontWeight: '800', marginBottom: 8, textAlign: 'center' },
+  choiceDesc: { fontSize: 14, lineHeight: 20, marginBottom: 20, textAlign: 'center' },
+  choiceBtn: {
+    paddingVertical: 14, borderRadius: 10, alignItems: 'center',
+  },
+  choiceBtnText: { color: '#FFFFFF', fontSize: 15, fontWeight: '700' },
   narrativeSummary: {
     fontSize: 16, fontWeight: '600', lineHeight: 24, marginBottom: 16,
   },
@@ -1791,7 +1876,7 @@ const s = StyleSheet.create({
     flexDirection: 'row', alignItems: 'center',
     padding: 12, borderRadius: 10, borderWidth: 1, gap: 12, marginBottom: 8,
   },
-  addTemplateEmoji: { fontSize: 24 },
+  addTemplateEmoji: { width: 28, alignItems: 'center', marginRight: 8 },
   addTemplateTitle: { fontSize: 14, fontWeight: '700' },
   addTemplateMeta: { fontSize: 12, marginTop: 2 },
   addTemplateArrow: { fontSize: 22, fontWeight: '700' },

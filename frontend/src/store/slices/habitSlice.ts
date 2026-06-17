@@ -47,15 +47,14 @@ export const createHabitSlice: StateCreator<HabitSlice> = (set) => ({
     })),
 
   toggleHabitCompletion: (habitId, dateString) =>
+    // 체크 해제 시 delete 하면 sync에서 false 상태가 백엔드로 안 가서
+    // HabitLog의 is_completed가 영원히 true로 남는 버그가 있었음.
+    // 명시적으로 false를 기록하고 sync 시 함께 전송.
     set((state) => ({
       habits: state.habits.map((h) => {
         if (h.id !== habitId) return h;
         const history = { ...h.completionHistory };
-        if (history[dateString]) {
-          delete history[dateString];
-        } else {
-          history[dateString] = true;
-        }
+        history[dateString] = !history[dateString];
         return { ...h, completionHistory: history, updatedAt: now() };
       }),
     })),

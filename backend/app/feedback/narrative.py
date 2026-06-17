@@ -216,13 +216,11 @@ def build_narrative(
         )
 
     # 5. 종합 진단
+    # 새 습관 추천은 졸업 흐름(graduate_habit → PostGraduationRecommendModal)에서만 발생.
+    # 리포트 자체는 기존 습관 조정(reduce_frequency)·휴식 개입(rest_choice)만 다룬다.
     if bucket == "high" and valence == "긍정 우세":
         diagnosis = "안정적 - 현재 루틴이 잘 맞아요"
-        recommendation = {
-            "kind": "add_habit",
-            "label": "새 습관 추가",
-            "message": "지금 흐름이 좋으니 새 습관을 한두 가지 더해봐도 좋아요.",
-        }
+        recommendation = None
     elif bucket == "low" and valence == "부정 우세":
         diagnosis = "회복 필요 - 부담을 줄여보세요"
         recommendation = {
@@ -232,10 +230,15 @@ def build_narrative(
         }
     elif "emotion_completion_inversion" in exc.reasons:
         diagnosis = "주의 - 성취와 컨디션의 균형 점검 필요"
+        # 사용자 의견을 받아 두 갈래로 분기: 휴식 습관 추가 vs 기존 습관을 다른 습관으로 변경
         recommendation = {
-            "kind": "rest",
-            "label": "휴식 습관 추가",
-            "message": "잘 해내고 있지만 컨디션이 무거워요. 호흡 명상이나 짧은 산책 같은 회복 습관을 일과에 추가해보세요.",
+            "kind": "rest_choice",
+            "label": "휴식 개입 — 선택해주세요",
+            "message": "잘 해내고 있지만 마음은 지쳐있어요. 짧은 회복 루틴을 추가할지, 지금 부담이 되는 습관을 다른 걸로 바꿀지 골라보세요.",
+            "options": [
+                {"action": "add_rest", "label": "휴식 습관 추가"},
+                {"action": "swap_habit", "label": "이 습관을 다른 습관으로 변경"},
+            ],
         }
     elif bucket == "low":
         diagnosis = "조정 필요 - 부담을 낮출 시점"

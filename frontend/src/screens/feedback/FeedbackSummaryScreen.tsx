@@ -15,6 +15,7 @@ import { themes } from '../../theme/themes';
 import type { DiaryEntry } from '../../types/diary';
 import type { HabitFrequency } from '../../types/habit';
 import { EMOTION_LABELS, EMOTION_EMOJIS } from '../../data/emotionKeywords';
+import { schedulePush } from '../../services/sync';
 import { EMOTIONS } from '../../types/diary';
 
 type FeedbackPeriod = 'week' | 'month' | 'year';
@@ -131,6 +132,7 @@ export function FeedbackSummaryScreen({ navigation }: any) {
     }
 
     return diaryEntries.filter((d) => {
+      if (d.deletedAt) return false;
       const dd = new Date(d.date + 'T00:00:00');
       return dd >= startDate && dd <= endDate;
     });
@@ -298,13 +300,8 @@ export function FeedbackSummaryScreen({ navigation }: any) {
       endDate = today;
     }
 
-    // selectedHashtags(사용자 선택 목표) + 활성 습관에 실제 붙어있는 모든 태그를 합집합으로 표시
-    // → 사용자가 선택하지 않은 추천 습관의 태그도 누락 없이 추적되어 이행률 표시
+    // 사용자가 선택한 해시태그(이상적 자아 태그)만 노출 — 트렌드는 사용자의 목표에 한정
     const tagSet = new Set<string>(selectedHashtags);
-    habits.forEach((h) => {
-      if (!h.isActive) return;
-      (h.hashtags || []).forEach((t) => tagSet.add(t));
-    });
 
     return Array.from(tagSet)
       .map((tag) => {
@@ -339,7 +336,11 @@ export function FeedbackSummaryScreen({ navigation }: any) {
       {
         text: '삭제',
         style: 'destructive',
-        onPress: () => removeDiaryEntry?.(entry.id),
+        onPress: () => {
+          removeDiaryEntry?.(entry.id);
+          // tombstone을 즉시 백엔드에 push → 다른 디바이스/리포트 집계에 즉시 반영
+          schedulePush();
+        },
       },
     ]);
   };

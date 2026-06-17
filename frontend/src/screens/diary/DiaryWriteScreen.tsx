@@ -62,7 +62,7 @@ export function DiaryWriteScreen({ navigation }: any) {
   const userName = useAppStore((s) => s.userName);
 
   const todayStr = formatDateString(new Date());
-  const existingEntry = diaryEntries.find((e) => e.date === todayStr);
+  const existingEntry = diaryEntries.find((e) => !e.deletedAt && e.date === todayStr);
 
   const [moodScore, setMoodScore] = useState(0.5);
   const [textContent, setTextContent] = useState('');

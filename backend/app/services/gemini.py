@@ -371,6 +371,7 @@ def generate_recommendation_rationale(
     primary_emotion: Optional[str],
     secondary_emotion: Optional[str],
     valence: str,
+    emotions_tied: bool = False,
 ) -> Optional[str]:
     """추천 행동의 '왜 지금 이걸?'을 사용자 데이터로 구체적으로 풀어내는 1~2문장."""
     if not _is_configured():
@@ -383,9 +384,16 @@ def generate_recommendation_rationale(
         "overall_rate": round(completion_rate, 2),
         "primary_emotion": primary_emotion,
         "secondary_emotion": secondary_emotion,
+        "emotions_tied": emotions_tied,
         "valence": valence,
     }
     ctx_json = json.dumps(ctx, ensure_ascii=False)
+
+    tie_rule = (
+        "- emotions_tied=true면 주감정/보조감정을 단정 짓지 말고 "
+        "'두 감정이 비슷한 비중으로' 같은 표현으로 풀 것\n"
+        if emotions_tied else ""
+    )
 
     prompt = f"""당신은 HABITS 앱의 추천 메시지 작성 어시스턴트입니다.
 
@@ -394,7 +402,7 @@ def generate_recommendation_rationale(
 - 처방이 아닌 선택지로 부드럽게 제시
 - 인과 단정 X, 관찰적 표현
 - 한국어 1~2문장, 이모지 1개 이내
-
+{tie_rule}
 추천 정보:
 {ctx_json}
 
